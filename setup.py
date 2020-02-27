@@ -8,4 +8,5 @@ setup(
     description="CUDA plugins for Metagraph",
     author="Anaconda, Inc.",
     packages=find_packages(include=["metagraph_cuda", "metagraph_cuda.*"]),
+    install_requires=["metagraph"],
 )
