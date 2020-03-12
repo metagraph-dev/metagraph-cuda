@@ -16,12 +16,16 @@ build:
 requirements:
   build:
     - python >=3
-
-  host:
-    - python >=3
+    - metagraph
+    - cudf
+    - cugraph
+    - cudatoolkit=10.0
 
   run:
     - python >=3
+    - metagraph
+    - cudf
+    - cugraph
 
 about:
   home: https://github.com/ContinuumIO/metagraph-cuda

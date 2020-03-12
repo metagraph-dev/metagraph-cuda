@@ -13,7 +13,6 @@ if cudf and cugraph:
 if pandas and cudf:
     pd = pandas
     from metagraph.default_plugins.wrappers.pandas import PandasEdgeList
-    from metagraph.default_plugins.wrappers.rapids import CuDFEdgeList
 
     @translator
     def translate_graph_pdedge2cudf(x: PandasEdgeList, **props) -> CuDFEdgeList:
