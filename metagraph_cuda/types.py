@@ -1,8 +1,10 @@
 from metagraph import ConcreteType, Wrapper
-from metagraph.default_plugins.abstract_types import DataFrame, Graph, WeightedGraph
-from .registry import cudf, cugraph
+from metagraph.types import DataFrame, Graph, WeightedGraph
+from .registry import has_cudf, has_cugraph
 
-if cudf:
+if has_cudf:
+    import cudf
+
     class CuDFType(ConcreteType, abstract=DataFrame):
         value_class = cudf.DataFrame
 
@@ -32,7 +34,9 @@ if cudf:
             )
 
 
-if cugraph:
+if has_cugraph:
+    import cugraph
+
     class CuGraphType(ConcreteType, abstract=Graph):
         value_type = cugraph.DiGraph
 

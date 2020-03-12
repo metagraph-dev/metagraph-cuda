@@ -1,10 +1,12 @@
-from metagraph import abstract_algorithm, concrete_algorithm
-from ..registry import cugraph, numpy
+from metagraph import concrete_algorithm
+from ..registry import has_cugraph
+import numpy as np
 
 
-if cugraph and numpy:
-    np = numpy
-    from metagraph.default_plugins.wrappers.numpy import NumpySparseVector
+if has_cugraph:
+    import cugraph
+
+    from metagraph.plugins.numpy.types import NumpySparseVector
 
     @concrete_algorithm("link_analysis.pagerank")
     def cugraph_pagerank(

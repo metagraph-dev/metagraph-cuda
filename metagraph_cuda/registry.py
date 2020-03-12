@@ -6,32 +6,25 @@ registry = PluginRegistry()
 
 def find_plugins():
     # Ensure we import all items we want registered
-    from . import wrappers, translators, algorithms
+    from . import types, translators, algorithms
 
-    registry.register_from_modules(wrappers, translators, algorithms)
+    registry.register_from_modules(types, translators, algorithms)
     return registry.plugins
-
 
 
 ################
 # Import guards
 ################
 try:
-    import cudf
+    import cudf as _
+
+    has_cudf = True
 except ImportError:
-    cudf = None
+    has_cudf = False
 
 try:
-    import cugraph
-except ImportError:
-    cugraph = None
+    import cugraph as _
 
-try:
-    import pandas
+    has_cugraph = True
 except ImportError:
-    pandas = None
-
-try:
-    import numpy
-except ImportError:
-    numpy = None
+    has_cugraph = False

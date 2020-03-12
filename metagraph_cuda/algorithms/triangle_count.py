@@ -1,8 +1,9 @@
-from metagraph import abstract_algorithm, concrete_algorithm
-from ..registry import cugraph
+from metagraph import concrete_algorithm
+from ..registry import has_cugraph
 
 
-if cugraph:
+if has_cugraph:
+    import cugraph
 
     @concrete_algorithm("cluster.triangle_count")
     def cugraph_triangle_count(graph: cugraph.DiGraph) -> int:

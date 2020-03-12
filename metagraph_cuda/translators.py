@@ -1,8 +1,11 @@
 from metagraph import translator
-from .wrappers import CuDFEdgeList, CuGraphType
-from .registry import cudf, cugraph, pandas
+from .registry import has_cudf, has_cugraph
+from metagraph.plugins import has_pandas
 
-if cudf and cugraph:
+if has_cudf and has_cugraph:
+    import cugraph
+    from .types import CuDFEdgeList, CuGraphType
+
     @translator
     def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraphType:
         g = cugraph.DiGraph()
@@ -10,9 +13,10 @@ if cudf and cugraph:
         return g
 
 
-if pandas and cudf:
-    pd = pandas
-    from metagraph.default_plugins.wrappers.pandas import PandasEdgeList
+if has_pandas and has_cudf:
+    import cudf
+    from .types import CuDFEdgeList
+    from metagraph.plugins.pandas.types import PandasEdgeList
 
     @translator
     def translate_graph_pdedge2cudf(x: PandasEdgeList, **props) -> CuDFEdgeList:
