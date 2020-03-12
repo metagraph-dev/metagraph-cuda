@@ -1,0 +1,45 @@
+# conda build -c http://stanlan-ate.corp.continuum.io/api/repo/hive -c jim22k --python 3.7 recipe/
+
+package:
+  name: metagraph-cuda
+  version: {{ GIT_DESCRIBE_TAG }}
+
+source:
+  path: ..
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER|int }}
+  string: py{{ PY_VER }}h{{ PKG_HASH }}_{{GIT_DESCRIBE_HASH}}_{{ GIT_DESCRIBE_NUMBER }}
+
+requirements:
+  host:
+    - python
+    - setuptools
+    - metagraph
+
+  run:
+    - python
+    - setuptools
+    - metagraph
+
+test:
+  requires:
+    - pytest
+    - networkx
+    - grblas
+#    - pytest-cov
+#    - coverage
+#    - black
+
+  commands:
+    - pytest --pyargs metagraph_cuda.tests
+
+about:
+  home: https://github.com/ContinuumIO/metagraph-cuda
+  license: Apache 2.0
+  license_family: Apache
+  license_file: LICENSE
+  summary: 'Metagraph plugins for NVIDIA GPUs'
+  description: |
+      Plugins for running graph algorithms on NVIDIA GPUs.
+  dev_url: https://github.com/ContinuumIO/metagraph-cuda
