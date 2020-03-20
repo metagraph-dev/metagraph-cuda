@@ -1,0 +1,10 @@
+name: mgc
+dependencies:
+# dev environment
+  - python=3.7
+  - coverage
+  - pytest
+  - pytest-cov
+  - black
+  - conda-forge::pre-commit
+  - setuptools
