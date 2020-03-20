@@ -9,5 +9,8 @@ setup(
     author="Anaconda, Inc.",
     packages=find_packages(include=["metagraph_cuda", "metagraph_cuda.*"]),
     include_package_data=True,
-    install_requires=["metagraph"],
+    install_requires=["metagraph", "cudf", "cugraph"],
+    entry_points={
+        "metagraph.plugins": "plugins=metagraph_cuda.registry:find_plugins"
+    },
 )

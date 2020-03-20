@@ -21,12 +21,14 @@ requirements:
     - python
     - setuptools
     - metagraph
+    - cudf
+    - cugraph
 
 test:
   requires:
     - pytest
-    - networkx
-    - grblas
+    - cudf
+    - cugraph
 #    - pytest-cov
 #    - coverage
 #    - black
