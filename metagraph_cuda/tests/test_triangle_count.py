@@ -2,9 +2,12 @@ import metagraph as mg
 import cugraph
 import cudf
 import io
+import numpy as np
+import scipy
 
 
 def test_triangle_count_on_cugraph_digraph_trivial():
+    r = mg.resolver
     # Load Graph Data
     data = """
 0,1
@@ -26,11 +29,11 @@ def test_triangle_count_on_cugraph_digraph_trivial():
     assert g.number_of_vertices() == 3
     assert g.number_of_edges() == 6
     # Test Triangle Count
-    r = mg.resolver
     assert r.algo.cluster.triangle_count(g) == 1
 
 
-def test_triangle_count_on_cugraph_digraph_fully_connected_Graph():
+def test_triangle_count_on_cugraph_digraph_fully_connected_graph():
+    r = mg.resolver
     # Generate & Load Graph Data
     number_of_nodes = 30
     sources = []
@@ -50,5 +53,15 @@ def test_triangle_count_on_cugraph_digraph_fully_connected_Graph():
         number_of_nodes - 1
     )  # n * (n-1) / 2 * two_edges_per_direction
     # Test Triangle Count
-    r = mg.resolver
     assert r.algo.cluster.triangle_count(g) == 4060  # 4060 == 30 choose 3
+
+
+def test_triangle_count_on__scipy_adjacency_matrix_trivial():
+    r = mg.resolver
+    # Load Graph Data
+    sparse_matrix = scipy.sparse.csr_matrix(
+        np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]]), dtype=np.int8
+    )
+    g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
+    # Test Triangle Count
+    assert r.algo.cluster.triangle_count(g) == 1
