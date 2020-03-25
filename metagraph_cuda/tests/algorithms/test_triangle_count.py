@@ -56,7 +56,7 @@ def test_triangle_count_on_cugraph_digraph_fully_connected_graph():
     assert r.algo.cluster.triangle_count(g) == 4060  # 4060 == 30 choose 3
 
 
-def test_triangle_count_on__scipy_adjacency_matrix_trivial():
+def test_triangle_count_on_scipy_adjacency_matrix_trivial():
     r = mg.resolver
     # Load Graph Data
     sparse_matrix = scipy.sparse.csr_matrix(
@@ -65,3 +65,20 @@ def test_triangle_count_on__scipy_adjacency_matrix_trivial():
     g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
     # Test Triangle Count
     assert r.algo.cluster.triangle_count(g) == 1
+
+
+def test_triangle_count_on_scipy_adjacency_matrix_fully_connected_graph():
+    r = mg.resolver
+    # Generate & Load Graph Data
+    number_of_nodes = 40
+    np_matrix = np.ones(
+        (number_of_nodes, number_of_nodes), dtype=np.int8
+    ) - np.identity(number_of_nodes, dtype=np.int8)
+    sparse_matrix = scipy.sparse.csr_matrix(np_matrix)
+    g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
+    # Validate Graph Data
+    assert sparse_matrix.sum() == number_of_nodes * (
+        number_of_nodes - 1
+    )  # n * (n-1) / 2 * two_edges_per_direction
+    # Test Triangle Count
+    assert r.algo.cluster.triangle_count(g) == 9880  # 9880 == 40 choose 3
