@@ -35,7 +35,7 @@ def test_pagerank_on_cugraph_digraph_via_tiny_fully_connected_graph():
 def test_pagerank_on_cugraph_digraph_via_fully_connected_graphs():
     r = mg.resolver
     # Generate & Load Graph Data
-    for number_of_nodes in [10, 100, 1_000]:
+    for number_of_nodes in [10, 100]:
         sources = []
         destinations = []
         for node_a in range(number_of_nodes):
@@ -62,8 +62,8 @@ def test_pagerank_on_cugraph_digraph_via_star_like_graphs():
     """
     r = mg.resolver
     hub_node = 0
-    fraction_of_nodes_to_point_to_non_hub_node = 0.5
-    for number_of_nodes in [10, 100, 1_000]:
+    fraction_of_nodes_targetting_neighbor = 0.5
+    for number_of_nodes in [10, 100]:
         # Generate & Load Graph Data
         sources = []
         destinations = []
@@ -74,10 +74,7 @@ def test_pagerank_on_cugraph_digraph_via_star_like_graphs():
             sources.append(outer_node)
             destinations.append(hub_node)
             expected_number_of_edges += 1
-            if (
-                outer_node / number_of_nodes
-                > fraction_of_nodes_to_point_to_non_hub_node
-            ):
+            if outer_node / number_of_nodes > fraction_of_nodes_targetting_neighbor:
                 neighbor_node = outer_node - 1 if outer_node + 1 else outer_node + 1
                 sources.append(outer_node)
                 destinations.append(neighbor_node)
