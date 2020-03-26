@@ -3,7 +3,6 @@ import cugraph
 import cudf
 import io
 import numpy as np
-import scipy
 
 
 def test_triangle_count_on_cugraph_digraph_via_trivial_triangle_graph():
@@ -32,17 +31,6 @@ def test_triangle_count_on_cugraph_digraph_via_trivial_triangle_graph():
     assert r.algo.cluster.triangle_count(g) == 1
 
 
-def test_triangle_count_on_scipy_adjacency_matrix_via_trivial_triangle_graph():
-    r = mg.resolver
-    # Load Graph Data
-    sparse_matrix = scipy.sparse.csr_matrix(
-        np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]]), dtype=np.int8
-    )
-    g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
-    # Test Triangle Count
-    assert r.algo.cluster.triangle_count(g) == 1
-
-
 def test_triangle_count_on_cugraph_digraph_via_fully_connected_graph():
     r = mg.resolver
     # Generate & Load Graph Data
@@ -64,22 +52,6 @@ def test_triangle_count_on_cugraph_digraph_via_fully_connected_graph():
     assert g.number_of_edges() == number_of_nodes * (number_of_nodes - 1)
     # Test Triangle Count
     assert r.algo.cluster.triangle_count(g) == 4060  # 4060 == 30 choose 3
-
-
-def test_triangle_count_on_scipy_adjacency_matrix_via_fully_connected_graph():
-    r = mg.resolver
-    # Generate & Load Graph Data
-    number_of_nodes = 40
-    np_matrix = np.ones(
-        (number_of_nodes, number_of_nodes), dtype=np.int8
-    ) - np.identity(number_of_nodes, dtype=np.int8)
-    sparse_matrix = scipy.sparse.csr_matrix(np_matrix)
-    g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
-    # Validate Graph Data
-    # n * (n-1) / 2 * two_edges_per_direction
-    assert sparse_matrix.sum() == number_of_nodes * (number_of_nodes - 1)
-    # Test Triangle Count
-    assert r.algo.cluster.triangle_count(g) == 9880  # 9880 == 40 choose 3
 
 
 def test_triangle_count_on_cugraph_digraph_via_wheel_graph():
@@ -109,26 +81,5 @@ def test_triangle_count_on_cugraph_digraph_via_wheel_graph():
         # Validate Graph Data
         assert g.number_of_vertices() == number_of_nodes
         assert g.number_of_edges() == (number_of_nodes - 1) * 4
-        # Test Triangle Count
-        assert r.algo.cluster.triangle_count(g) == (number_of_nodes - 1)
-
-
-def test_triangle_count_on_scipy_adjacency_matrix_via_wheel_graph():
-    r = mg.resolver
-    # Generate & Load Graph Data
-    for number_of_nodes in [10, 100, 1_000, 5_000]:
-        identity_matrix = np.identity(number_of_nodes, dtype=np.int8)
-        np_matrix = np.roll(identity_matrix, 1, axis=1) + np.roll(
-            identity_matrix, 1, axis=0
-        )
-        np_matrix[:, 0] = 1
-        np_matrix[0, :] = 1
-        np_matrix[1, -1] = 1
-        np_matrix[-1, 1] = 1
-        np_matrix[0, 0] = 0
-        sparse_matrix = scipy.sparse.csr_matrix(np_matrix)
-        g = r.wrapper.Graph.ScipyAdjacencyMatrix(sparse_matrix)
-        # Validate Graph Data
-        assert sparse_matrix.sum() == (number_of_nodes - 1) * 4
         # Test Triangle Count
         assert r.algo.cluster.triangle_count(g) == (number_of_nodes - 1)
