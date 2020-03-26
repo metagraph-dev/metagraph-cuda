@@ -5,7 +5,7 @@ import io
 import numpy as np
 
 
-def test_triangle_count_on_cugraph_digraph_via_tiny_fully_connected_graph():
+def test_pagerank_on_cugraph_digraph_via_tiny_fully_connected_graph():
     r = mg.resolver
     # Load Graph Data
     data = """
@@ -32,7 +32,7 @@ def test_triangle_count_on_cugraph_digraph_via_tiny_fully_connected_graph():
     assert np.std(rankings.value) < 1e-8
 
 
-def test_triangle_count_on_cugraph_digraph_via_fully_connected_graphs():
+def test_pagerank_on_cugraph_digraph_via_fully_connected_graphs():
     r = mg.resolver
     # Generate & Load Graph Data
     for number_of_nodes in [10, 100, 1_000]:
