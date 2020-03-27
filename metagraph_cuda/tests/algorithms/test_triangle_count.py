@@ -37,7 +37,7 @@ graph_csv_data = """
 def test_triangle_count_on_cugraph_digraph():
     r = mg.resolver
     # Load Graph Data
-    csv_file = io.StringIO(data)
+    csv_file = io.StringIO(graph_csv_data)
     gdf = cudf.read_csv(
         csv_file, names=["Source", "Destination"], dtype=["int32", "int32"]
     )
