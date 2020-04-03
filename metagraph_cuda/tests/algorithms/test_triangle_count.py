@@ -41,19 +41,15 @@ def test_triangle_count_on_cugraph_digraph():
     gdf = cudf.read_csv(
         csv_file, names=["Source", "Destination"], dtype=["int32", "int32"]
     )
-    g = cugraph.Graph()
-    g.from_cudf_edgelist(gdf, source="Source", destination="Destination")
+    cugraph_graph = cugraph.Graph()
+    cugraph_graph.from_cudf_edgelist(gdf, source="Source", destination="Destination")
     # Verify Graph Data
-    assert g.number_of_vertices() == 8
-    assert g.number_of_edges() == 11
-    # Verify Resolver Support For Graph Type
-    g_type = type(g)
-    assert g_type == cugraph.Graph
-    assert g_type in r.class_to_concrete
-    g_concrete_type = r.class_to_concrete[g_type]
-    assert g_concrete_type in r.concrete_types
+    assert cugraph_graph.number_of_vertices() == 8
+    assert cugraph_graph.number_of_edges() == 11
     # Verify Algorithm Presence
+    g = r.wrapper.Graph.CuGraph(cugraph_graph)
     assert r.find_algorithm_exact("cluster.triangle_count", g)
     # Verify Triangle Count Result Type
     number_of_triangles = r.algo.cluster.triangle_count(g)
+    assert number_of_triangles == 5
     assert isinstance(number_of_triangles, int)

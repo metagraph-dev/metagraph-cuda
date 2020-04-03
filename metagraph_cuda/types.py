@@ -98,87 +98,6 @@ if has_cugraph:
     import cugraph
     import cudf
 
-    def _determine_dtype_from_cugraph_graph(g: cugraph.Graph) -> str:
-        if g.edgelist:
-            edge_list = g.view_edge_list()
-
-            if not "weights" in edge_list.columns:
-                return "bool"
-
-            weights = edge_list["weights"]
-            return dtypes.dtypes_simplified[weights.dtype]
-
-        elif g.adjlist:
-            adj_list = g.view_adj_list()
-            weights = adj_list[2]
-
-            if weights is None:
-                return "bool"
-
-            return dtypes.dtypes_simplified[weights.dtype]
-
-    def _determine_weights_from_cugraph_graph(g: cugraph.Graph, dtype: str) -> str:
-        if dtype == "str":
-            return "any"
-
-        if g.edgelist:
-            edge_list = g.view_edge_list()
-            if not "weights" in edge_list.columns:
-                return "unweighted"
-            values = edge_list["weights"]
-        elif g.adjlist:
-            adj_list = g.view_adj_list()
-            values = adj_list[2]
-
-        if dtype == "bool":
-            if values.all():
-                return "unweighted"
-            return "non-negative"
-        else:
-            min_val = values.min()
-            if min_val < 0:
-                return "any"
-            elif min_val == 0:
-                return "non-negative"
-            else:
-                if dtype == "int" and min_val == 1 and values.max() == 1:
-                    return "unweighted"
-                return "positive"
-
-    class AutoCuGraphType(ConcreteType, abstract=Graph):
-        value_type = cugraph.Graph
-
-        @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                obj_dtype = _determine_dtype_from_cugraph_graph(obj)
-                obj_weights = _determine_weights_from_cugraph_graph(obj, obj_dtype)
-                obj_is_directed = isinstance(obj, cugraph.DiGraph)
-                ret_val.abstract_instance = Graph(
-                    dtype=obj_dtype, weights=obj_weights, is_directed=obj_is_directed
-                )
-                return ret_val
-            else:
-                raise TypeError(f"object not of type {cls.__name__}")
-
-    class AutoCuDiGraphType(ConcreteType, abstract=Graph):
-        value_type = cugraph.DiGraph
-
-        @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                obj_dtype = _determine_dtype_from_cugraph_graph(obj)
-                obj_weights = _determine_weights_from_cugraph_graph(obj, obj_dtype)
-                obj_is_directed = True
-                ret_val.abstract_instance = Graph(
-                    dtype=obj_dtype, weights=obj_weights, is_directed=obj_is_directed
-                )
-                return ret_val
-            else:
-                raise TypeError(f"object not of type {cls.__name__}")
-
     class CuGraph(Wrapper, abstract=Graph):
         def __init__(
             self, graph, *, weights=None, node_index=None,
@@ -194,7 +113,23 @@ if has_cugraph:
             self._weights = self._determine_weights(weights)
 
         def _determine_dtype(self):
-            return _determine_dtype_from_cugraph_graph(self.value)
+            if self.value.edgelist:
+                edge_list = self.value.view_edge_list()
+
+                if not "weights" in edge_list.columns:
+                    return "bool"
+
+                weights = edge_list["weights"]
+                return dtypes.dtypes_simplified[weights.dtype]
+
+            elif self.value.adjlist:
+                adj_list = self.value.view_adj_list()
+                weights = adj_list[2]
+
+                if weights is None:
+                    return "bool"
+
+                return dtypes.dtypes_simplified[weights.dtype]
 
         def _determine_weights(self, weights):
             if weights is not None:
@@ -205,7 +140,32 @@ if has_cugraph:
             if weights is None:
                 return "unweighted"
 
-            return _determine_weights_from_cugraph_graph(self.value, self._dtype)
+            if self._dtype == "str":
+                return "any"
+
+            if self.value.edgelist:
+                edge_list = self.value.view_edge_list()
+                if not "weights" in edge_list.columns:
+                    return "unweighted"
+                values = edge_list["weights"]
+            elif self.value.adjlist:
+                adj_list = self.value.view_adj_list()
+                values = adj_list[2]
+
+            if self._dtype == "bool":
+                if values.all():
+                    return "unweighted"
+                return "non-negative"
+            else:
+                min_val = values.min()
+                if min_val < 0:
+                    return "any"
+                elif min_val == 0:
+                    return "non-negative"
+                else:
+                    if self._dtype == "int" and min_val == 1 and values.max() == 1:
+                        return "unweighted"
+                    return "positive"
 
         @property
         def node_index(self):

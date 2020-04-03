@@ -4,17 +4,13 @@ from metagraph.plugins import has_pandas
 
 if has_cudf and has_cugraph:
     import cugraph
-    from .types import CuDFEdgeList, AutoCuGraphType, CuGraph
+    from .types import CuDFEdgeList, CuGraph
 
     @translator
-    def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> AutoCuGraphType:
-        g = cugraph.Graph()
-        g.from_cudf_edgelist(x.value, x.src_label, x.dest_label)
-        return g
-
-    @translator
-    def translate_graph_cugraph2autocugraph(x: CuGraph, **props) -> AutoCuGraphType:
-        return x.value
+    def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraph:
+        cugraph_graph = cugraph.Graph()
+        cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dest_label)
+        return CuGraph(cugraph_graph)
 
 
 if has_pandas and has_cudf:

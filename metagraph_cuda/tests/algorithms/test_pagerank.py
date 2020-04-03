@@ -42,18 +42,13 @@ def test_pagerank_on_cugraph_digraph():
     gdf = cudf.read_csv(
         csv_file, names=["Source", "Destination"], dtype=["int32", "int32"]
     )
-    g = cugraph.DiGraph()
-    g.from_cudf_edgelist(gdf, source="Source", destination="Destination")
+    cugraph_digraph = cugraph.DiGraph()
+    cugraph_digraph.from_cudf_edgelist(gdf, source="Source", destination="Destination")
     # Verify Graph Data
-    assert g.number_of_vertices() == 4
-    assert g.number_of_edges() == 5
-    # Verify Resolver Support For Graph Type
-    g_type = type(g)
-    assert g_type == cugraph.DiGraph
-    assert g_type in r.class_to_concrete
-    g_concrete_type = r.class_to_concrete[g_type]
-    assert g_concrete_type in r.concrete_types
+    assert cugraph_digraph.number_of_vertices() == 4
+    assert cugraph_digraph.number_of_edges() == 5
     # Verify Algorithm Presence
+    g = r.wrapper.Graph.CuGraph(cugraph_digraph)
     assert r.find_algorithm("link_analysis.pagerank", g)
     # Verify PageRank Result Type & Result
     rankings = r.algo.link_analysis.pagerank(g)
