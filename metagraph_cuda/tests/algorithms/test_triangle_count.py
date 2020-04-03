@@ -41,14 +41,14 @@ def test_triangle_count_on_cugraph_digraph():
     gdf = cudf.read_csv(
         csv_file, names=["Source", "Destination"], dtype=["int32", "int32"]
     )
-    g = cugraph.DiGraph()
+    g = cugraph.Graph()
     g.from_cudf_edgelist(gdf, source="Source", destination="Destination")
     # Verify Graph Data
     assert g.number_of_vertices() == 8
-    assert g.number_of_edges() == 22
+    assert g.number_of_edges() == 11
     # Verify Resolver Support For Graph Type
     g_type = type(g)
-    assert g_type == cugraph.DiGraph
+    assert g_type == cugraph.Graph
     assert g_type in r.class_to_concrete
     g_concrete_type = r.class_to_concrete[g_type]
     assert g_concrete_type in r.concrete_types

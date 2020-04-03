@@ -54,7 +54,7 @@ def test_pagerank_on_cugraph_digraph():
     g_concrete_type = r.class_to_concrete[g_type]
     assert g_concrete_type in r.concrete_types
     # Verify Algorithm Presence
-    assert r.find_algorithm_exact("link_analysis.pagerank", g)
+    assert r.find_algorithm("link_analysis.pagerank", g)
     # Verify PageRank Result Type & Result
     rankings = r.algo.link_analysis.pagerank(g)
     assert isinstance(rankings.value, np.ndarray)
