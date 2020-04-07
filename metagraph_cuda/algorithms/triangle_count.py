@@ -4,7 +4,8 @@ from ..registry import has_cugraph
 
 if has_cugraph:
     import cugraph
+    from ..types import CuGraph
 
     @concrete_algorithm("cluster.triangle_count")
-    def cugraph_triangle_count(graph: cugraph.DiGraph) -> int:
-        return cugraph.triangles(graph) // 3
+    def cugraph_triangle_count(graph: CuGraph) -> int:
+        return cugraph.triangles(graph.value) // 3
