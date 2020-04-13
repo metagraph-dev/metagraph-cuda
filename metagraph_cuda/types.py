@@ -3,8 +3,6 @@ from metagraph import ConcreteType, Wrapper, dtypes, IndexedNodes
 from metagraph.types import DataFrame, Graph, WEIGHT_CHOICES, Nodes
 from .registry import has_cudf, has_cugraph
 
-_NONE_SPECIFIED = object()  # sentinel value
-
 if has_cudf:
     import cudf
 
@@ -13,20 +11,12 @@ if has_cudf:
 
     class CuDFNodes(Wrapper, abstract=Nodes):
         def __init__(
-            self,
-            data,
-            key_label,
-            value_label,
-            *,
-            weights=None,
-            missing_value=_NONE_SPECIFIED,
-            node_index=None,
+            self, data, key_label, value_label, *, weights=None, node_index=None,
         ):
             self.value = data
             self._assert_instance(data, cudf.DataFrame)
             self._key_label = key_label
             self._value_label = value_label
-            self.missing_value = missing_value
             self._dtype = dtypes.dtypes_simplified[data[self._value_label].dtype]
             self._weights = self._determine_weights(weights)
             self._node_index = node_index
@@ -48,40 +38,20 @@ if has_cudf:
 
             if self._dtype == "str":
                 return "any"
-            values = self.value[~self.get_missing_mask()]
             if self._dtype == "bool":
-                if values.all():
+                if self.value.all():
                     return "unweighted"
                 return "non-negative"
             else:
-                min_val = values.min()
+                min_val = self.value.min()
                 if min_val < 0:
                     return "any"
                 elif min_val == 0:
                     return "non-negative"
                 else:
-                    if self._dtype == "int" and min_val == 1 and values.max() == 1:
+                    if self._dtype == "int" and min_val == 1 and self.value.max() == 1:
                         return "unweighted"
                     return "positive"
-
-        def get_missing_mask(self):
-            """
-            Returns an array of True/False where True indicates a missing value
-            """
-            if self.missing_value is _NONE_SPECIFIED:
-                zero_array = np.zeros(len(self.value.shape))
-                return cudf.DataFrame(
-                    {self._key_label: zero_array, self._value_label: zero_array},
-                    dtype=bool,
-                )
-
-            if self.missing_value != self.missing_value:
-                # Special handling for null which does not equal itself
-                return self.value.isnull()
-            else:
-                # null / np.nan values in self.value become 0 after using this mask
-                # bug reported in https://github.com/rapidsai/cudf/issues/4866
-                return self.value == self.missing_value
 
         @property
         def node_index(self):
