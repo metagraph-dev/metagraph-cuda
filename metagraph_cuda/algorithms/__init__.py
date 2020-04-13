@@ -1,1 +1,1 @@
-from . import triangle_count, pagerank
+from . import triangle_count, pagerank, connected_components

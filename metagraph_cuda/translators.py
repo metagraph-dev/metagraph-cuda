@@ -1,6 +1,6 @@
 from metagraph import translator
 from .registry import has_cudf, has_cugraph
-from metagraph.plugins import has_pandas
+from metagraph.plugins import has_pandas, has_networkx
 
 if has_cudf and has_cugraph:
     import cugraph
@@ -8,9 +8,98 @@ if has_cudf and has_cugraph:
 
     @translator
     def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraph:
-        cugraph_graph = cugraph.Graph()
-        cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dest_label)
+        cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
+        cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dst_label)
         return CuGraph(cugraph_graph)
+
+    @translator
+    def translate_graph_cugraph2cudfedge(x: CuGraph, **props) -> CuDFEdgeList:
+        type_info = CuGraph.Type.get_type(x)
+        weight_label = None
+        if (x.value.edgelist and "weights" in x.value.view_edge_list().columns) or (
+            x.value.adjlist and x.value.view_adj_list()[2] is not None
+        ):
+            weight_label = "weights"
+        return CuDFEdgeList(
+            x.value.view_edge_list(),
+            src_label="src",
+            dst_label="dst",
+            weight_label=weight_label,
+            is_directed=type_info["is_directed"],
+            weights=type_info["weights"],
+            node_index=x.node_index,
+        )
+
+
+if has_networkx and has_cugraph:
+    import cudf
+    import networkx as nx
+    from .types import CuGraph
+    from metagraph.plugins.networkx.types import NetworkXGraph
+
+    @translator
+    def translate_graph_cugraph2networkx(x: CuGraph, **props) -> NetworkXGraph:
+        type_info = CuGraph.Type.get_type(x)
+        weight_label = None
+        out = nx.DiGraph() if x.is_directed else nx.Graph()
+        column_name_to_series_map = {
+            column_name: series
+            for column_name, series in x.value.view_edge_list().iteritems()
+        }
+        if "weights" in column_name_to_series_map:
+            source_destination_weight_triples = zip(
+                column_name_to_series_map["src"],
+                column_name_to_series_map["dst"],
+                column_name_to_series_map["weights"],
+            )
+            out.add_weighted_edges_from(source_destination_weight_triples)
+            weight_label = "weight"
+        else:
+            source_destination_weight_pairs = zip(
+                column_name_to_series_map["src"], column_name_to_series_map["dst"]
+            )
+            out.add_edges_from(source_destination_weight_pairs)
+        print(out.number_of_edges())
+        print("\n" * 8)
+        return NetworkXGraph(
+            out,
+            weight_label=weight_label,
+            weights=type_info["weights"],
+            dtype=type_info["dtype"],
+            node_index=x.node_index,
+        )
+
+
+if has_networkx and has_cudf:
+    import cudf
+    from .types import CuDFEdgeList
+    from metagraph.plugins.networkx.types import NetworkXGraph
+
+    @translator
+    def translate_graph_networkx2cudf(x: NetworkXGraph, **props) -> CuDFEdgeList:
+        type_info = NetworkXGraph.Type.get_type(x)
+        edgelist = x.value.edges(data=True)
+        source_nodes, target_nodes, node_data_dicts = zip(*edgelist)
+        cdf_data = {"source": source_nodes, "destination": target_nodes}
+        if x.weight_label:
+            cdf_data.update(
+                {
+                    x.weight_label: [
+                        data_dict.get(x.weight_label, float("nan"))
+                        for data_dict in node_data_dicts
+                    ]
+                }
+            )
+        cdf = cudf.DataFrame(cdf_data)
+        return CuDFEdgeList(
+            cdf,
+            src_label="source",
+            dst_label="destination",
+            weight_label=x.weight_label,
+            is_directed=type_info["is_directed"],
+            weights=type_info["weights"],
+            node_index=x.node_index,
+        )
 
 
 if has_pandas and has_cudf:
@@ -21,4 +110,18 @@ if has_pandas and has_cudf:
     @translator
     def translate_graph_pdedge2cudf(x: PandasEdgeList, **props) -> CuDFEdgeList:
         df = cudf.from_pandas(x.value)
-        return CuDFEdgeList(df, src_label=x.src_label, dest_label=x.dest_label)
+        return CuDFEdgeList(df, src_label=x.src_label, dst_label=x.dst_label)
+
+    @translator
+    def translate_graph_cudf2pdedge(x: CuDFEdgeList, **props) -> PandasEdgeList:
+        type_info = CuDFEdgeList.Type.get_type(x)
+        pdf = x.value.to_pandas()
+        return PandasEdgeList(
+            pdf,
+            src_label=x.src_label,
+            dst_label=x.dst_label,
+            weight_label=x.weight_label,
+            is_directed=type_info["is_directed"],
+            weights=type_info["weights"],
+            node_index=x.node_index,
+        )
