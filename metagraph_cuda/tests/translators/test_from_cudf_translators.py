@@ -49,3 +49,15 @@ Source,Destination
         pdf.value[pdf.value["Source"] == 3]["Destination"]
     )
     assert set(pdf.value[pdf.value["Source"] == 3]["Destination"]) == {2}
+
+
+def test_cudf_nodes_to_python_nodes():
+    r = mg.resolver
+    keys = [3, 2, 1]
+    values = [33, 22, 11]
+    cudf_data = cudf.DataFrame({"key": keys, "val": values})
+    cudf_nodes = r.wrapper.Nodes.CuDFNodes(cudf_data, "key", "val")
+    python_nodes = r.translate(cudf_nodes, r.types.Nodes.PythonNodesType)
+    assert len(cudf_nodes.value) == 3
+    for k, v in zip(keys, values):
+        assert python_nodes[k] == v

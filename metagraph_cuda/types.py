@@ -15,19 +15,19 @@ if has_cudf:
         ):
             self.value = data
             self._assert_instance(data, cudf.DataFrame)
-            self._key_label = key_label
-            self._value_label = value_label
-            self._dtype = dtypes.dtypes_simplified[data[self._value_label].dtype]
+            self.key_label = key_label
+            self.value_label = value_label
+            self._dtype = dtypes.dtypes_simplified[data[self.value_label].dtype]
             self._weights = self._determine_weights(weights)
             self._node_index = node_index
 
         def __getitem__(self, label):
             if self._node_index is None:
-                if self.value.index.name != self._key_label:
-                    self.value = self.value.set_index(self._key_label)
-                return self.value.loc[label].loc[self._value_label]
-            return self.value.loc[self._node_index.bylabel(label)].loc[
-                self._value_label
+                if self.value.index.name != self.key_label:
+                    self.value = self.value.set_index(self.key_label)
+                return self.value.loc[label].loc[self.value_label]
+            return self.value.iloc[self._node_index.bylabel(label)].loc[
+                self.value_label
             ]
 
         def _determine_weights(self, weights=None):
@@ -43,22 +43,29 @@ if has_cudf:
                     return "unweighted"
                 return "non-negative"
             else:
-                min_val = self.value.min()
+                min_val = self.value[self.value_label].min()
                 if min_val < 0:
                     return "any"
                 elif min_val == 0:
                     return "non-negative"
                 else:
-                    if self._dtype == "int" and min_val == 1 and self.value.max() == 1:
+                    if (
+                        self._dtype == "int"
+                        and min_val == 1
+                        and self.value[self.value_label].max() == 1
+                    ):
                         return "unweighted"
                     return "positive"
 
         @property
         def node_index(self):
             if self._node_index is None:
-                keys = self.value[self._key_label]
+                if self.value.index.name != self.key_label:
+                    self.value = self.value.set_index(self.key_label)
+                keys = self.value.index
                 if keys.dtype == dtypes.int64:
-                    keys = keys.sort_values()
+                    self.value = self.value.sort_index()
+                    keys = self.value.index
                 self._node_index = IndexedNodes(keys)
             return self._node_index
 

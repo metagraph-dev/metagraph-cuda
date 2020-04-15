@@ -2,6 +2,38 @@ from metagraph import translator
 from .registry import has_cudf, has_cugraph
 from metagraph.plugins import has_pandas, has_networkx
 
+
+if has_cudf:
+    import numpy as np
+    import cudf
+    from .types import CuDFNodes
+    from metagraph.plugins.python.types import PythonNodes, dtype_casting
+    from metagraph.plugins.numpy.types import NumpyNodes
+
+    @translator
+    def translate_nodes_cudfnodes2pythonnodes(x: CuDFNodes, **props) -> PythonNodes:
+        cast = dtype_casting[x._dtype]
+        data = {key: cast(x[key]) for key in x.node_index}
+        return PythonNodes(
+            data, dtype=x._dtype, weights=x._weights, node_index=x.node_index
+        )
+
+    @translator
+    def translate_nodes_pythonnodes2cudfnodes(x: PythonNodes, **props) -> CuDFNodes:
+        keys, values = zip(*x.value.items())
+        data = cudf.DataFrame({"key": keys, "value": values})
+        return CuDFNodes(
+            data, "key", "value", weights=x._weights, node_index=x.node_index
+        )
+
+    @translator
+    def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
+        idx = np.arange(len(x.value))[~x.get_missing_mask()]
+        vals = x.value[idx]
+        data = cudf.DataFrame({"key": idx, "value": vals})
+        return CuDFNodes(data, "key", "value", weights=x._weights)
+
+
 if has_cudf and has_cugraph:
     import cugraph
     from .types import CuDFEdgeList, CuGraph
@@ -59,8 +91,6 @@ if has_networkx and has_cugraph:
                 column_name_to_series_map["src"], column_name_to_series_map["dst"]
             )
             out.add_edges_from(source_destination_weight_pairs)
-        print(out.number_of_edges())
-        print("\n" * 8)
         return NetworkXGraph(
             out,
             weight_label=weight_label,

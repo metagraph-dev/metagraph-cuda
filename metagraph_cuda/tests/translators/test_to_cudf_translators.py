@@ -257,3 +257,23 @@ def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     assert set(cdf.value[cdf.value["src"] == 2]["weights"]) == {3.3}
     assert set(cdf.value[cdf.value["src"] == 3]["dst"]) == {0, 2}
     assert set(cdf.value[cdf.value["src"] == 3]["weights"]) == {4.4, 5.5}
+
+
+def test_numpy_nodes_to_cudf_nodes():
+    r = mg.resolver
+    numpy_data = np.array([33, 22, 11])
+    numpy_nodes = r.wrapper.Nodes.NumpyNodes(numpy_data)
+    cudf_nodes = r.translate(numpy_nodes, r.types.Nodes.CuDFNodesType)
+    assert len(cudf_nodes.value) == 3
+    for k, v in enumerate(numpy_data):
+        assert cudf_nodes[k] == v
+
+
+def test_python_nodes_to_cudf_nodes():
+    r = mg.resolver
+    python_data = {1: 11, 2: 22, 3: 33}
+    python_nodes = r.wrapper.Nodes.PythonNodes(python_data)
+    cudf_nodes = r.translate(python_nodes, r.types.Nodes.CuDFNodesType)
+    assert len(cudf_nodes.value) == 3
+    for k, v in python_data.items():
+        assert cudf_nodes[k] == v
