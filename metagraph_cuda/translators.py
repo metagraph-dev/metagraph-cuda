@@ -28,7 +28,7 @@ if has_cudf:
 
     @translator
     def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
-        idx = np.arange(len(x.value))[~x.get_missing_mask()]
+        idx = np.arange(len(x.value))
         vals = x.value[idx]
         data = cudf.DataFrame({"key": idx, "value": vals})
         return CuDFNodes(data, "key", "value", weights=x._weights)

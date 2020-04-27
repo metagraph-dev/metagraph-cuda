@@ -58,6 +58,10 @@ if has_cudf:
                     return "positive"
 
         @property
+        def num_nodes(self):
+            return len(self.value.index)
+
+        @property
         def node_index(self):
             if self._node_index is None:
                 if self.value.index.name != self.key_label:
@@ -143,6 +147,13 @@ if has_cudf:
                     if self._dtype == "int" and min_val == 1 and values.max() == 1:
                         return "unweighted"
                     return "positive"
+
+        @property
+        def num_nodes(self):
+            src_col = self.value[self.src_label]
+            dst_col = self.value[self.dst_label]
+            all_nodes = cudf.concat([src_col, dst_col]).unique()
+            return len(all_nodes)
 
         @property
         def node_index(self):
@@ -239,6 +250,12 @@ if has_cugraph:
                     if self._dtype == "int" and min_val == 1 and values.max() == 1:
                         return "unweighted"
                     return "positive"
+
+        @property
+        def num_nodes(self):
+            edge_list = self.value.view_edge_list()
+            all_nodes = cudf.concat([edge_list["src"], edge_list["dst"]]).unique()
+            return len(all_nodes)
 
         @property
         def node_index(self):

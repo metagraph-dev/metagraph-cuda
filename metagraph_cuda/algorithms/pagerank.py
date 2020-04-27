@@ -21,4 +21,4 @@ if has_cugraph:
         )
         out = np.full((graph.value.number_of_nodes(),), np.nan)
         out[pagerank["vertex"]] = pagerank["pagerank"]
-        return NumpyNodes(out, missing_value=np.nan)
+        return NumpyNodes(out)
