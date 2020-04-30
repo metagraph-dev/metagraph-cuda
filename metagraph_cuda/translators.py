@@ -4,7 +4,8 @@ from metagraph.plugins import has_pandas, has_networkx
 
 import numpy as np
 import cudf
-from .types import CuDFNodes
+import cugraph
+from .types import CuDFEdgeList, CuGraph, CuDFNodes
 from metagraph.plugins.python.types import PythonNodes, dtype_casting
 from metagraph.plugins.numpy.types import NumpyNodes
 
@@ -31,11 +32,6 @@ def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
     vals = x.value[idx]
     data = cudf.DataFrame({"key": idx, "value": vals})
     return CuDFNodes(data, "key", "value", weights=x._weights)
-
-    import cugraph
-
-
-from .types import CuDFEdgeList, CuGraph
 
 
 @translator
