@@ -1,69 +1,70 @@
 from metagraph import translator
-from .registry import has_cudf, has_cugraph
 from metagraph.plugins import has_pandas, has_networkx
 
 
-if has_cudf:
-    import numpy as np
-    import cudf
-    from .types import CuDFNodes
-    from metagraph.plugins.python.types import PythonNodes, dtype_casting
-    from metagraph.plugins.numpy.types import NumpyNodes
-
-    @translator
-    def translate_nodes_cudfnodes2pythonnodes(x: CuDFNodes, **props) -> PythonNodes:
-        cast = dtype_casting[x._dtype]
-        data = {key: cast(x[key]) for key in x.node_index}
-        return PythonNodes(
-            data, dtype=x._dtype, weights=x._weights, node_index=x.node_index
-        )
-
-    @translator
-    def translate_nodes_pythonnodes2cudfnodes(x: PythonNodes, **props) -> CuDFNodes:
-        keys, values = zip(*x.value.items())
-        data = cudf.DataFrame({"key": keys, "value": values})
-        return CuDFNodes(
-            data, "key", "value", weights=x._weights, node_index=x.node_index
-        )
-
-    @translator
-    def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
-        idx = np.arange(len(x.value))
-        vals = x.value[idx]
-        data = cudf.DataFrame({"key": idx, "value": vals})
-        return CuDFNodes(data, "key", "value", weights=x._weights)
+import numpy as np
+import cudf
+from .types import CuDFNodes
+from metagraph.plugins.python.types import PythonNodes, dtype_casting
+from metagraph.plugins.numpy.types import NumpyNodes
 
 
-if has_cudf and has_cugraph:
+@translator
+def translate_nodes_cudfnodes2pythonnodes(x: CuDFNodes, **props) -> PythonNodes:
+    cast = dtype_casting[x._dtype]
+    data = {key: cast(x[key]) for key in x.node_index}
+    return PythonNodes(
+        data, dtype=x._dtype, weights=x._weights, node_index=x.node_index
+    )
+
+
+@translator
+def translate_nodes_pythonnodes2cudfnodes(x: PythonNodes, **props) -> CuDFNodes:
+    keys, values = zip(*x.value.items())
+    data = cudf.DataFrame({"key": keys, "value": values})
+    return CuDFNodes(data, "key", "value", weights=x._weights, node_index=x.node_index)
+
+
+@translator
+def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
+    idx = np.arange(len(x.value))
+    vals = x.value[idx]
+    data = cudf.DataFrame({"key": idx, "value": vals})
+    return CuDFNodes(data, "key", "value", weights=x._weights)
+
     import cugraph
-    from .types import CuDFEdgeList, CuGraph
-
-    @translator
-    def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraph:
-        cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
-        cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dst_label)
-        return CuGraph(cugraph_graph)
-
-    @translator
-    def translate_graph_cugraph2cudfedge(x: CuGraph, **props) -> CuDFEdgeList:
-        type_info = CuGraph.Type.get_type(x)
-        weight_label = None
-        if (x.value.edgelist and "weights" in x.value.view_edge_list().columns) or (
-            x.value.adjlist and x.value.view_adj_list()[2] is not None
-        ):
-            weight_label = "weights"
-        return CuDFEdgeList(
-            x.value.view_edge_list(),
-            src_label="src",
-            dst_label="dst",
-            weight_label=weight_label,
-            is_directed=type_info["is_directed"],
-            weights=type_info["weights"],
-            node_index=x.node_index,
-        )
 
 
-if has_networkx and has_cugraph:
+from .types import CuDFEdgeList, CuGraph
+
+
+@translator
+def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraph:
+    cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
+    cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dst_label)
+    return CuGraph(cugraph_graph)
+
+
+@translator
+def translate_graph_cugraph2cudfedge(x: CuGraph, **props) -> CuDFEdgeList:
+    type_info = CuGraph.Type.get_type(x)
+    weight_label = None
+    if (x.value.edgelist and "weights" in x.value.view_edge_list().columns) or (
+        x.value.adjlist and x.value.view_adj_list()[2] is not None
+    ):
+        weight_label = "weights"
+    return CuDFEdgeList(
+        x.value.view_edge_list(),
+        src_label="src",
+        dst_label="dst",
+        weight_label=weight_label,
+        is_directed=type_info["is_directed"],
+        weights=type_info["weights"],
+        node_index=x.node_index,
+    )
+
+
+if has_networkx:
     import cudf
     import networkx as nx
     from .types import CuGraph
@@ -100,7 +101,7 @@ if has_networkx and has_cugraph:
         )
 
 
-if has_networkx and has_cudf:
+if has_networkx:
     import cudf
     from .types import CuDFEdgeList
     from metagraph.plugins.networkx.types import NetworkXGraph
@@ -132,7 +133,7 @@ if has_networkx and has_cudf:
         )
 
 
-if has_pandas and has_cudf:
+if has_pandas:
     import cudf
     from .types import CuDFEdgeList
     from metagraph.plugins.pandas.types import PandasEdgeList

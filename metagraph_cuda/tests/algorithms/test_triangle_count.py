@@ -43,9 +43,6 @@ def test_triangle_count_on_cugraph_digraph():
     )
     cugraph_graph = cugraph.Graph()
     cugraph_graph.from_cudf_edgelist(gdf, source="Source", destination="Destination")
-    # Verify Graph Data
-    assert cugraph_graph.number_of_vertices() == 8
-    assert cugraph_graph.number_of_edges() == 11
     # Verify Algorithm Presence
     g = r.wrapper.Graph.CuGraph(cugraph_graph)
     assert r.find_algorithm_exact("cluster.triangle_count", g)
