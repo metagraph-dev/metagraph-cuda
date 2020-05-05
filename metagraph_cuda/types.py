@@ -1,12 +1,131 @@
+import numpy as np
 from metagraph import ConcreteType, Wrapper, dtypes, IndexedNodes
-from metagraph.types import DataFrame, Graph
+from metagraph.types import DataFrame, Graph, DTYPE_CHOICES, WEIGHT_CHOICES, Nodes
 from .registry import has_cudf, has_cugraph
+from typing import List, Dict, Any
 
 if has_cudf:
     import cudf
 
     class CuDFType(ConcreteType, abstract=DataFrame):
         value_type = cudf.DataFrame
+
+    class CuDFNodes(Wrapper, abstract=Nodes):
+        def __init__(
+            self, data, key_label, value_label, *, weights=None, node_index=None,
+        ):
+            self.value = data
+            self._assert_instance(data, cudf.DataFrame)
+            self.key_label = key_label
+            self.value_label = value_label
+            self._dtype = dtypes.dtypes_simplified[data[self.value_label].dtype]
+            self._weights = self._determine_weights(weights)
+            self._node_index = node_index
+
+        def __getitem__(self, label):
+            if self._node_index is None:
+                if self.value.index.name != self.key_label:
+                    self.value = self.value.set_index(self.key_label)
+                return self.value.loc[label].loc[self.value_label]
+            return self.value.iloc[self._node_index.bylabel(label)].loc[
+                self.value_label
+            ]
+
+        def _determine_weights(self, weights=None):
+            if weights is not None:
+                if weights not in WEIGHT_CHOICES:
+                    raise ValueError(f"Illegal weights: {weights}")
+                return weights
+
+            if self._dtype == "str":
+                return "any"
+            if self._dtype == "bool":
+                if self.value.all():
+                    return "unweighted"
+                return "non-negative"
+            else:
+                min_val = self.value[self.value_label].min()
+                if min_val < 0:
+                    return "any"
+                elif min_val == 0:
+                    return "non-negative"
+                else:
+                    if (
+                        self._dtype == "int"
+                        and min_val == 1
+                        and self.value[self.value_label].max() == 1
+                    ):
+                        return "unweighted"
+                    return "positive"
+
+        @property
+        def num_nodes(self):
+            return len(self.value.index)
+
+        @property
+        def node_index(self):
+            if self._node_index is None:
+                if self.value.index.name != self.key_label:
+                    self.value = self.value.set_index(self.key_label)
+                keys = self.value.index
+                if keys.dtype == dtypes.int64:
+                    self.value = self.value.sort_index()
+                    keys = self.value.index
+                self._node_index = IndexedNodes(keys)
+            return self._node_index
+
+        @classmethod
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(dtype=obj._dtype, weights=obj._weights,)
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuDFNodes, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuDFNodes, not {type(obj2)}"
+
+            assert (
+                obj1.num_nodes == obj2.num_nodes
+            ), f"{obj1.num_nodes} != {obj2.num_nodes}"
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            # Convert to a common node indexing scheme
+            d1 = obj1.value
+            d2 = obj2.value
+            assert len(d1) == len(d2), f"{len(d1)} != {len(d2)}"
+            d1 = (
+                d1[[obj1.key_label, obj1.value_label]]
+                .rename(
+                    {obj1.key_label: obj2.key_label, obj1.value_label: obj2.value_label}
+                )
+                .set_index(obj2.key_label)
+                .sort_index(obj2.key_label)
+            )
+            d2 = (
+                d2[[obj2.key_label, obj2.value_label]]
+                .set_index(obj2.key_label)
+                .sort_index(obj2.key_label)
+            )
+            assert d1.index.equals(d2.index), "Keys of d1 and d2 differ."
+            # Compare
+            if check_values:
+                if obj1._dtype == "float":
+                    v1 = d1[obj2.value_label]
+                    v2 = d2[obj2.value_label]
+                    abs_difference = v1.sub(v2).abs()
+                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
+                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                else:
+                    assert d1.equals(d2)
 
     class CuDFEdgeList(Wrapper, abstract=Graph):
         def __init__(
@@ -72,6 +191,11 @@ if has_cudf:
                     return "positive"
 
         @property
+        def num_nodes(self):
+            src_nodes, dst_nodes = self.index.levels
+            return len(src_nodes | dst_nodes)
+
+        @property
         def node_index(self):
             if self._node_index is None:
                 src_col = self.value[self.src_label]
@@ -83,15 +207,68 @@ if has_cudf:
             return self._node_index
 
         @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                ret_val.abstract_instance = Graph(
-                    dtype=obj._dtype, weights=obj._weights, is_directed=obj.is_directed
-                )
-                return ret_val
-            else:
-                raise TypeError(f"object not of type {cls.__name__}")
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(
+                is_directed=obj.is_directed, dtype=obj._dtype, weights=obj._weights,
+            )
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuDFEdgeList, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuDFEdgeList, not {type(obj2)}"
+
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            # Compare
+            g1 = obj1.value
+            g2 = obj2.value
+            assert len(g1) == len(g2), f"{len(g1)} != {len(g2)}"
+            obj1_columns = [obj1.src_label, obj1.dst_label]
+            obj2_columns = [obj2.src_label, obj2.dst_label]
+            renaming_dict = {
+                obj1.src_label: obj2.src_label,
+                obj1.dst_label: obj2.dst_label,
+            }
+            if obj1._weights != "unweighted" or obj2._weights != "unweighted":
+                renaming_dict[obj1.weight_label] = obj2.weight_label
+            g1 = (
+                g1[[obj1.src_label, obj1.dst_label, obj1.weight_label]]
+                if obj1.weight_label
+                else g1[[obj1.src_label, obj1.dst_label]]
+            )
+            g1 = (
+                g1.rename(renaming_dict)
+                .set_index([obj2.src_label, obj2.dst_label])
+                .sort_index([obj2.src_label, obj2.dst_label])
+            )
+            g2 = (
+                g2[[obj2.src_label, obj2.dst_label, obj2.weight_label]]
+                if obj2.weight_label
+                else g2[[obj2.src_label, obj2.dst_label]]
+            )
+            g2 = g2.set_index([obj2.src_label, obj2.dst_label]).sort_index(
+                [obj2.src_label, obj2.dst_label]
+            )
+            assert g1.index.equals(g2.index), "Srcs of g1 and g2 differ."
+            if check_values and obj1._weights != "unweighted":
+                v1 = g1[obj2.weight_label]
+                v2 = g2[obj2.weight_label]
+                if issubclass(v1.dtype.type, np.floating):
+                    abs_difference = v1.sub(v2).abs()
+                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
+                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                else:
+                    assert v1.equals(v2)
 
 
 if has_cugraph:
@@ -100,7 +277,7 @@ if has_cugraph:
 
     class CuGraph(Wrapper, abstract=Graph):
         def __init__(
-            self, graph, *, weights=None, node_index=None,
+            self, graph, *, weights=None, dtype=None, node_index=None,
         ):
             self._assert_instance(graph, cugraph.Graph)
             self.value = graph
@@ -109,10 +286,15 @@ if has_cugraph:
             self._assert(
                 self.value.adjlist or self.value.edgelist, "Graph missing data."
             )
-            self._dtype = self._determine_dtype()
+            self._dtype = self._determine_dtype(dtype)
             self._weights = self._determine_weights(weights)
 
-        def _determine_dtype(self):
+        def _determine_dtype(self, dtype):
+            if dtype is not None:
+                if dtype not in DTYPE_CHOICES:
+                    raise ValueError(f"Illegal dtype: {dtype}")
+                return dtype
+
             if self.value.edgelist:
                 edge_list = self.value.view_edge_list()
 
@@ -137,9 +319,6 @@ if has_cugraph:
                     raise ValueError(f"Illegal weights: {weights}")
                 return weights
 
-            if weights is None:
-                return "unweighted"
-
             if self._dtype == "str":
                 return "any"
 
@@ -151,6 +330,9 @@ if has_cugraph:
             elif self.value.adjlist:
                 adj_list = self.value.view_adj_list()
                 values = adj_list[2]
+
+            if values is None:
+                return "unweighted"
 
             if self._dtype == "bool":
                 if values.all():
@@ -168,6 +350,12 @@ if has_cugraph:
                     return "positive"
 
         @property
+        def num_nodes(self):
+            edge_list = self.value.view_edge_list()
+            all_nodes = cudf.concat([edge_list["src"], edge_list["dst"]]).unique()
+            return len(all_nodes)
+
+        @property
         def node_index(self):
             if self._node_index is None:
                 if self.value.edgelist:
@@ -183,12 +371,69 @@ if has_cugraph:
             return self._node_index
 
         @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                ret_val.abstract_instance = Graph(
-                    dtype=obj._dtype, weights=obj._weights, is_directed=obj.is_directed
-                )
-                return ret_val
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(
+                is_directed=obj.is_directed, dtype=obj._dtype, weights=obj._weights,
+            )
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuGraph, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuGraph, not {type(obj2)}"
+
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            g1 = obj1.value
+            g2 = obj2.value
+            assert (
+                g1.is_directed() == g2.is_directed()
+            ), f"{g1.is_directed()} != {g2.is_directed()}"
+            # Compare
+            if self.value.edgelist:
+                # TODO see if this can be optimized
+                g1_edge_list = g1.view_edge_list()
+                g1_nodes = cudf.concat(
+                    [g1_edge_list["src"], g1_edge_list["dst"]]
+                ).unique()
+                g2_edge_list = g2.view_edge_list()
+                g2_nodes = cudf.concat(
+                    [g2_edge_list["src"], g2_edge_list["dst"]]
+                ).unique()
+                assert (
+                    g1_nodes.isin(g2_nodes).all() and g2_nodes.isin(g1_nodes).all()
+                ), "g1 and g2 have different nodes"
+                assert len(g1_edge_list) == len(g2_edge_list) and len(
+                    g1_edge_list.merge(g2_edge_list, how="outer")
+                ) == len(g1_edge_list), "g1 and g2 have different edges"
             else:
-                raise TypeError(f"object not of type {cls.__name__}")
+                assert (
+                    g1.number_of_nodes() == g2.number_of_nodes()
+                ), "g1 and g2 have different nodes"
+                assert all(
+                    g1.view_adj_list() == g2.view_adj_list()
+                ), "g1 and g2 have different edges"
+
+            if check_values and obj1._weights != "unweighted":
+                if obj1._dtype == "float":
+                    comp = partial(math.isclose, rel_tol=rel_tol, abs_tol=abs_tol)
+                    compstr = "close to"
+                else:
+                    comp = operator.eq
+                    compstr = "equal to"
+
+                # TODO see if this can be optimized
+                for e1, e2, d1 in g1.edges(data=True):
+                    d2 = g2.edges[(e1, e2)]
+                    val1 = d1[obj1.weight_label]
+                    val2 = d2[obj2.weight_label]
+                    assert comp(val1, val2), f"{(e1, e2)} {val1} not {compstr} {val2}"
