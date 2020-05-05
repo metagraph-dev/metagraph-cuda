@@ -1,7 +1,8 @@
 import numpy as np
 from metagraph import ConcreteType, Wrapper, dtypes, IndexedNodes
-from metagraph.types import DataFrame, Graph, WEIGHT_CHOICES, Nodes
+from metagraph.types import DataFrame, Graph, DTYPE_CHOICES, WEIGHT_CHOICES, Nodes
 from .registry import has_cudf, has_cugraph
+from typing import List, Dict, Any
 
 if has_cudf:
     import cudf
@@ -74,16 +75,57 @@ if has_cudf:
             return self._node_index
 
         @classmethod
-        def get_type(cls, obj):
-            """Get an instance of this type class that describes obj"""
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                ret_val.abstract_instance = cls.abstract(
-                    dtype=obj._dtype, weights=obj._weights
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(dtype=obj._dtype, weights=obj._weights,)
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuDFNodes, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuDFNodes, not {type(obj2)}"
+
+            assert (
+                obj1.num_nodes == obj2.num_nodes
+            ), f"{obj1.num_nodes} != {obj2.num_nodes}"
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            # Convert to a common node indexing scheme
+            d1 = obj1.value
+            d2 = obj2.value
+            assert len(d1) == len(d2), f"{len(d1)} != {len(d2)}"
+            d1 = (
+                d1[[obj1.key_label, obj1.value_label]]
+                .rename(
+                    {obj1.key_label: obj2.key_label, obj1.value_label: obj2.value_label}
                 )
-                return ret_val
-            else:
-                raise TypeError(f"object not of type {cls.__name__}")
+                .set_index(obj2.key_label)
+                .sort_index(obj2.key_label)
+            )
+            d2 = (
+                d2[[obj2.key_label, obj2.value_label]]
+                .set_index(obj2.key_label)
+                .sort_index(obj2.key_label)
+            )
+            assert d1.index.equals(d2.index), "Keys of d1 and d2 differ."
+            # Compare
+            if check_values:
+                if obj1._dtype == "float":
+                    v1 = d1[obj2.value_label]
+                    v2 = d2[obj2.value_label]
+                    abs_difference = v1.sub(v2).abs()
+                    tolerable_difference = v2.abs().mul(rtol).add(atol)
+                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                else:
+                    assert d1.equals(d2)
 
     class CuDFEdgeList(Wrapper, abstract=Graph):
         def __init__(
@@ -150,10 +192,8 @@ if has_cudf:
 
         @property
         def num_nodes(self):
-            src_col = self.value[self.src_label]
-            dst_col = self.value[self.dst_label]
-            all_nodes = cudf.concat([src_col, dst_col]).unique()
-            return len(all_nodes)
+            src_nodes, dst_nodes = self.index.levels
+            return len(src_nodes | dst_nodes)
 
         @property
         def node_index(self):
@@ -167,15 +207,58 @@ if has_cudf:
             return self._node_index
 
         @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                ret_val.abstract_instance = Graph(
-                    dtype=obj._dtype, weights=obj._weights, is_directed=obj.is_directed
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(
+                is_directed=obj.is_directed, dtype=obj._dtype, weights=obj._weights,
+            )
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuDFEdgeList, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuDFEdgeList, not {type(obj2)}"
+
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            # Compare
+            g1 = obj1.value
+            g2 = obj2.value
+            # TODO optimize to avoid sorting
+            g1_for_node_comp = (
+                g1[[obj1.src_label, obj1.dst_label]]
+                .rename(
+                    {obj1.src_label: obj2.src_label, obj1.dst_label: obj2.dst_label}
                 )
-                return ret_val
-            else:
-                raise TypeError(f"object not of type {cls.__name__}")
+                .set_index([obj2.src_label, obj2.dst_label])
+                .sort_index([obj2.src_label, obj2.dst_label])
+            )
+            g2_for_node_comp = (
+                g2[[obj2.src_label, obj2.dst_label]]
+                .set_index([obj2.src_label, obj2.dst_label])
+                .sort_index([obj2.src_label, obj2.dst_label])
+            )
+            assert g1_for_node_comp.equals(
+                g2_for_node_comp
+            ), "g1 and g2 have different nodes"
+            if check_values and obj1._weights != "unweighted":
+                # TODO optimize this
+                if check_values and obj1._weights != "unweighted":
+                    # TODO use native cudf
+                    v1 = g1[obj1.weight_label].to_pandas()
+                    v2 = g2[obj2.weight_label].to_pandas()
+                    if issubclass(v1.dtype.type, np.floating):
+                        assert np.isclose(v1, v2, rtol=rel_tol, atol=abs_tol).all()
+                    else:
+                        assert (v1 == v2).all()
 
 
 if has_cugraph:
@@ -184,7 +267,7 @@ if has_cugraph:
 
     class CuGraph(Wrapper, abstract=Graph):
         def __init__(
-            self, graph, *, weights=None, node_index=None,
+            self, graph, *, weights=None, dtype=None, node_index=None,
         ):
             self._assert_instance(graph, cugraph.Graph)
             self.value = graph
@@ -193,10 +276,15 @@ if has_cugraph:
             self._assert(
                 self.value.adjlist or self.value.edgelist, "Graph missing data."
             )
-            self._dtype = self._determine_dtype()
+            self._dtype = self._determine_dtype(dtype)
             self._weights = self._determine_weights(weights)
 
-        def _determine_dtype(self):
+        def _determine_dtype(self, dtype):
+            if dtype is not None:
+                if dtype not in DTYPE_CHOICES:
+                    raise ValueError(f"Illegal dtype: {dtype}")
+                return dtype
+
             if self.value.edgelist:
                 edge_list = self.value.view_edge_list()
 
@@ -221,9 +309,6 @@ if has_cugraph:
                     raise ValueError(f"Illegal weights: {weights}")
                 return weights
 
-            if weights is None:
-                return "unweighted"
-
             if self._dtype == "str":
                 return "any"
 
@@ -235,6 +320,9 @@ if has_cugraph:
             elif self.value.adjlist:
                 adj_list = self.value.view_adj_list()
                 values = adj_list[2]
+
+            if values is None:
+                return "unweighted"
 
             if self._dtype == "bool":
                 if values.all():
@@ -273,12 +361,69 @@ if has_cugraph:
             return self._node_index
 
         @classmethod
-        def get_type(cls, obj):
-            if isinstance(obj, cls.value_type):
-                ret_val = cls()
-                ret_val.abstract_instance = Graph(
-                    dtype=obj._dtype, weights=obj._weights, is_directed=obj.is_directed
-                )
-                return ret_val
+        def compute_abstract_properties(cls, obj, props: List[str]) -> Dict[str, Any]:
+            cls._validate_abstract_props(props)
+            return dict(
+                is_directed=obj.is_directed, dtype=obj._dtype, weights=obj._weights,
+            )
+
+        @classmethod
+        def assert_equal(
+            cls, obj1, obj2, *, rel_tol=1e-9, abs_tol=0.0, check_values=True
+        ):
+            assert (
+                type(obj1) is cls.value_type
+            ), f"obj1 must be CuGraph, not {type(obj1)}"
+            assert (
+                type(obj2) is cls.value_type
+            ), f"obj2 must be CuGraph, not {type(obj2)}"
+
+            if check_values:
+                assert obj1._dtype == obj2._dtype, f"{obj1._dtype} != {obj2._dtype}"
+                assert (
+                    obj1._weights == obj2._weights
+                ), f"{obj1._weights} != {obj2._weights}"
+            g1 = obj1.value
+            g2 = obj2.value
+            assert (
+                g1.is_directed() == g2.is_directed()
+            ), f"{g1.is_directed()} != {g2.is_directed()}"
+            # Compare
+            if self.value.edgelist:
+                # TODO see if this can be optimized
+                g1_edge_list = g1.view_edge_list()
+                g1_nodes = cudf.concat(
+                    [g1_edge_list["src"], g1_edge_list["dst"]]
+                ).unique()
+                g2_edge_list = g2.view_edge_list()
+                g2_nodes = cudf.concat(
+                    [g2_edge_list["src"], g2_edge_list["dst"]]
+                ).unique()
+                assert (
+                    g1_nodes.isin(g2_nodes).all() and g2_nodes.isin(g1_nodes).all()
+                ), "g1 and g2 have different nodes"
+                assert len(g1_edge_list) == len(g2_edge_list) and len(
+                    g1_edge_list.merge(g2_edge_list, how="outer")
+                ) == len(g1_edge_list), "g1 and g2 have different edges"
             else:
-                raise TypeError(f"object not of type {cls.__name__}")
+                assert (
+                    g1.number_of_nodes() == g2.number_of_nodes()
+                ), "g1 and g2 have different nodes"
+                assert all(
+                    g1.view_adj_list() == g2.view_adj_list()
+                ), "g1 and g2 have different edges"
+
+            if check_values and obj1._weights != "unweighted":
+                if obj1._dtype == "float":
+                    comp = partial(math.isclose, rel_tol=rel_tol, abs_tol=abs_tol)
+                    compstr = "close to"
+                else:
+                    comp = operator.eq
+                    compstr = "equal to"
+
+                # TODO see if this can be optimized
+                for e1, e2, d1 in g1.edges(data=True):
+                    d2 = g2.edges[(e1, e2)]
+                    val1 = d1[obj1.weight_label]
+                    val2 = d2[obj2.weight_label]
+                    assert comp(val1, val2), f"{(e1, e2)} {val1} not {compstr} {val2}"

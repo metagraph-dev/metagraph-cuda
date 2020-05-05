@@ -37,7 +37,7 @@ def translate_nodes_numpynodes2cudfnodes(x: NumpyNodes, **props) -> CuDFNodes:
 @translator
 def translate_graph_cudfedge2cugraph(x: CuDFEdgeList, **props) -> CuGraph:
     cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
-    cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dst_label)
+    cugraph_graph.from_cudf_edgelist(x.value, x.src_label, x.dst_label, x.weight_label)
     return CuGraph(cugraph_graph)
 
 

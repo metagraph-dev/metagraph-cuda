@@ -6,6 +6,7 @@ import scipy
 import cugraph
 import cudf
 import io
+from metagraph_cuda.types import CuDFEdgeList, CuDFNodes
 
 
 def test_pandas_edge_list_to_cudf_edge_list():
@@ -21,7 +22,7 @@ def test_pandas_edge_list_to_cudf_edge_list():
 |0|       |2|  <--  |3|
 +-+  -->  +-+       +-+
 """
-    r = mg.resolver
+    dpr = mg.resolver
     csv_data = """
 Source,Destination
 0,1
@@ -32,26 +33,15 @@ Source,Destination
 """
     csv_file = io.StringIO(csv_data)
     pdf_unwrapped = pd.read_csv(csv_file)
-    pdf = r.wrapper.Graph.PandasEdgeList(pdf_unwrapped, "Source", "Destination")
-    cdf = r.translate(pdf, r.types.Graph.CuDFEdgeListType)
-    assert len(pdf.value) == len(cdf.value)
-    assert len(pdf.value) == 5
-    assert set(cdf.value[cdf.value["Source"] == 0]["Destination"]) == set(
-        pdf.value[pdf.value["Source"] == 0]["Destination"]
+    x = dpr.wrapper.Graph.PandasEdgeList(pdf_unwrapped, "Source", "Destination")
+
+    csv_file = io.StringIO(csv_data)
+    cdf_unwrapped = cudf.read_csv(csv_file)
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "Source", "Destination"
     )
-    assert set(cdf.value[cdf.value["Source"] == 0]["Destination"]) == {1, 2}
-    assert set(cdf.value[cdf.value["Source"] == 1]["Destination"]) == set(
-        pdf.value[pdf.value["Source"] == 1]["Destination"]
-    )
-    assert set(cdf.value[cdf.value["Source"] == 1]["Destination"]) == {2}
-    assert set(cdf.value[cdf.value["Source"] == 2]["Destination"]) == set(
-        pdf.value[pdf.value["Source"] == 2]["Destination"]
-    )
-    assert set(cdf.value[cdf.value["Source"] == 2]["Destination"]) == {0}
-    assert set(cdf.value[cdf.value["Source"] == 3]["Destination"]) == set(
-        pdf.value[pdf.value["Source"] == 3]["Destination"]
-    )
-    assert set(cdf.value[cdf.value["Source"] == 3]["Destination"]) == {2}
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_unweighted_directed_networkx_to_cudf_edge_list():
@@ -67,7 +57,7 @@ def test_unweighted_directed_networkx_to_cudf_edge_list():
 |0|       |2|  <--  |3|
 +-+  -->  +-+       +-+
 """
-    r = mg.resolver
+    dpr = mg.resolver
     networkx_graph_data = [
         (0, 1),
         (0, 2),
@@ -77,13 +67,16 @@ def test_unweighted_directed_networkx_to_cudf_edge_list():
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_edges_from(networkx_graph_data)
-    networkx_graph = r.wrapper.Graph.NetworkXGraph(networkx_graph_unwrapped)
-    cdf = r.translate(networkx_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 5
-    assert set(cdf.value[cdf.value["source"] == 0]["destination"]) == {1, 2}
-    assert set(cdf.value[cdf.value["source"] == 1]["destination"]) == {2}
-    assert set(cdf.value[cdf.value["source"] == 2]["destination"]) == {0}
-    assert set(cdf.value[cdf.value["source"] == 3]["destination"]) == {2}
+    x = dpr.wrapper.Graph.NetworkXGraph(networkx_graph_unwrapped)
+
+    sources = [0, 0, 1, 2, 3]
+    destinations = [1, 2, 2, 0, 2]
+    cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_weighted_directed_networkx_to_cudf_edge_list():
@@ -101,7 +94,7 @@ def test_weighted_directed_networkx_to_cudf_edge_list():
 |0|        |2|  <-5-  |3|
 +-+  -8->  +-+        +-+
 """
-    r = mg.resolver
+    dpr = mg.resolver
     networkx_graph_data = [
         (0, 1, 9),
         (0, 2, 8),
@@ -113,19 +106,19 @@ def test_weighted_directed_networkx_to_cudf_edge_list():
     networkx_graph_unwrapped.add_weighted_edges_from(
         networkx_graph_data, weight="weight"
     )
-    networkx_graph = r.wrapper.Graph.NetworkXGraph(
-        networkx_graph_unwrapped, weight_label="weight"
+    x = dpr.wrapper.Graph.NetworkXGraph(networkx_graph_unwrapped, weight_label="weight")
+
+    sources = [0, 0, 1, 2, 3]
+    destinations = [1, 2, 2, 0, 2]
+    weights = [9, 8, 6, 7, 5]
+    cdf_unwrapped = cudf.DataFrame(
+        {"source": sources, "destination": destinations, "weight": weights}
     )
-    cdf = r.translate(networkx_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 5
-    assert set(cdf.value[cdf.value["source"] == 0]["destination"]) == {1, 2}
-    assert set(cdf.value[cdf.value["source"] == 0]["weight"]) == {9, 8}
-    assert set(cdf.value[cdf.value["source"] == 1]["destination"]) == {2}
-    assert set(cdf.value[cdf.value["source"] == 1]["weight"]) == {6}
-    assert set(cdf.value[cdf.value["source"] == 2]["destination"]) == {0}
-    assert set(cdf.value[cdf.value["source"] == 2]["weight"]) == {7}
-    assert set(cdf.value[cdf.value["source"] == 3]["destination"]) == {2}
-    assert set(cdf.value[cdf.value["source"] == 3]["weight"]) == {5}
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination", "weight"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_unweighted_directed_edge_list_cugraph_to_cudf_edge_list():
@@ -136,24 +129,20 @@ def test_unweighted_directed_edge_list_cugraph_to_cudf_edge_list():
 v       v /       v      
 3   - > 4 < -   2   - > 7
     """
-    r = mg.resolver
+    dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
     destinations = [3, 0, 4, 4, 5, 7, 1, 4, 5, 6, 2]
-    nodes = set(sources + destinations)
     gdf = cudf.DataFrame({"source": sources, "dst": destinations})
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_edgelist(gdf, source="source", destination="dst")
-    cugraph_graph = r.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    cdf = r.translate(cugraph_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 11
-    assert set(cdf.value[cdf.value["src"] == 0]["dst"]) == {3}
-    assert set(cdf.value[cdf.value["src"] == 1]["dst"]) == {0, 4}
-    assert set(cdf.value[cdf.value["src"] == 2]["dst"]) == {4, 5, 7}
-    assert set(cdf.value[cdf.value["src"] == 3]["dst"]) == {1, 4}
-    assert set(cdf.value[cdf.value["src"] == 4]["dst"]) == {5}
-    assert set(cdf.value[cdf.value["src"] == 5]["dst"]) == {6}
-    assert set(cdf.value[cdf.value["src"] == 6]["dst"]) == {2}
-    assert set(cdf.value[cdf.value["src"] == 7]["dst"]) == set()
+    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+
+    cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_weighted_directed_edge_list_cugraph_to_cudf_edge_list():
@@ -166,11 +155,10 @@ def test_weighted_directed_edge_list_cugraph_to_cudf_edge_list():
 v        v /        v      
 3 --8--> 4 <--4-- 2 --6--> 7
     """
-    r = mg.resolver
+    dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
     destinations = [3, 0, 4, 4, 5, 7, 1, 4, 5, 6, 2]
     weights = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    nodes = set(sources + destinations)
     gdf = cudf.DataFrame(
         {"source": sources, "destination": destinations, "weight": weights}
     )
@@ -178,24 +166,17 @@ v        v /        v
     cugraph_graph_unwrapped.from_cudf_edgelist(
         gdf, source="source", destination="destination", edge_attr="weight"
     )
-    cugraph_graph = r.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    cdf = r.translate(cugraph_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 11
-    assert set(cdf.value[cdf.value["src"] == 0]["dst"]) == {3}
-    assert set(cdf.value[cdf.value["src"] == 0]["weights"]) == {1}
-    assert set(cdf.value[cdf.value["src"] == 1]["dst"]) == {0, 4}
-    assert set(cdf.value[cdf.value["src"] == 1]["weights"]) == {2, 3}
-    assert set(cdf.value[cdf.value["src"] == 2]["dst"]) == {4, 5, 7}
-    assert set(cdf.value[cdf.value["src"] == 2]["weights"]) == {4, 5, 6}
-    assert set(cdf.value[cdf.value["src"] == 3]["dst"]) == {1, 4}
-    assert set(cdf.value[cdf.value["src"] == 3]["weights"]) == {7, 8}
-    assert set(cdf.value[cdf.value["src"] == 4]["dst"]) == {5}
-    assert set(cdf.value[cdf.value["src"] == 4]["weights"]) == {9}
-    assert set(cdf.value[cdf.value["src"] == 5]["dst"]) == {6}
-    assert set(cdf.value[cdf.value["src"] == 5]["weights"]) == {10}
-    assert set(cdf.value[cdf.value["src"] == 6]["dst"]) == {2}
-    assert set(cdf.value[cdf.value["src"] == 6]["weights"]) == {11}
-    assert set(cdf.value[cdf.value["src"] == 7]["dst"]) == set()
+    cugraph_graph = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.translate(cugraph_graph, dpr.types.Graph.CuDFEdgeListType)
+
+    cdf_unwrapped = cudf.DataFrame(
+        {"source": sources, "destination": destinations, "weight": weights}
+    )
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination", "weight"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_unweighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
@@ -208,7 +189,7 @@ def test_unweighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
 |      \ v 
 2 <----- 3 
     """
-    r = mg.resolver
+    dpr = mg.resolver
     sparse_matrix = scipy.sparse.csr_matrix(
         np.array([[0, 1, 0, 0], [0, 0, 0, 1], [1, 0, 0, 0], [1, 0, 1, 0]]),
         dtype=np.int8,
@@ -217,13 +198,17 @@ def test_unweighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     indices = cudf.Series(sparse_matrix.indices)
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, None)
-    cugraph_graph = r.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    cdf = r.translate(cugraph_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 5
-    assert set(cdf.value[cdf.value["src"] == 0]["dst"]) == {1}
-    assert set(cdf.value[cdf.value["src"] == 1]["dst"]) == {3}
-    assert set(cdf.value[cdf.value["src"] == 2]["dst"]) == {0}
-    assert set(cdf.value[cdf.value["src"] == 3]["dst"]) == {0, 2}
+    cugraph_graph = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.translate(cugraph_graph, dpr.types.Graph.CuDFEdgeListType)
+
+    sources = [0, 1, 2, 3, 3]
+    destinations = [1, 3, 0, 2, 0]
+    cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
@@ -236,7 +221,7 @@ def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
 |      \ v 
 2 <-5.5- 3 
     """
-    r = mg.resolver
+    dpr = mg.resolver
     sparse_matrix = scipy.sparse.csr_matrix(
         np.array([[0, 1, 0, 0], [0, 0, 0, 1], [1, 0, 0, 0], [1, 0, 1, 0]]),
         dtype=np.int8,
@@ -246,34 +231,44 @@ def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     weights = cudf.Series([1.1, 2.2, 3.3, 4.4, 5.5])
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, weights)
-    cugraph_graph = r.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    cdf = r.translate(cugraph_graph, r.types.Graph.CuDFEdgeListType)
-    assert len(cdf.value) == 5
-    assert set(cdf.value[cdf.value["src"] == 0]["dst"]) == {1}
-    assert set(cdf.value[cdf.value["src"] == 0]["weights"]) == {1.1}
-    assert set(cdf.value[cdf.value["src"] == 1]["dst"]) == {3}
-    assert set(cdf.value[cdf.value["src"] == 1]["weights"]) == {2.2}
-    assert set(cdf.value[cdf.value["src"] == 2]["dst"]) == {0}
-    assert set(cdf.value[cdf.value["src"] == 2]["weights"]) == {3.3}
-    assert set(cdf.value[cdf.value["src"] == 3]["dst"]) == {0, 2}
-    assert set(cdf.value[cdf.value["src"] == 3]["weights"]) == {4.4, 5.5}
+    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+
+    sources = [0, 1, 2, 3, 3]
+    destinations = [1, 3, 0, 0, 2]
+    weights = [1.1, 2.2, 3.3, 4.4, 5.5]
+    cdf_unwrapped = cudf.DataFrame(
+        {"source": sources, "destination": destinations, "weight": weights}
+    )
+    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+        cdf_unwrapped, "source", "destination", "weight"
+    )
+    y = dpr.translate(x, CuDFEdgeList)
+    CuDFEdgeList.Type.assert_equal(y, intermediate)
 
 
 def test_numpy_nodes_to_cudf_nodes():
-    r = mg.resolver
+    dpr = mg.resolver
     numpy_data = np.array([33, 22, 11])
-    numpy_nodes = r.wrapper.Nodes.NumpyNodes(numpy_data)
-    cudf_nodes = r.translate(numpy_nodes, r.types.Nodes.CuDFNodesType)
-    assert len(cudf_nodes.value) == 3
-    for k, v in enumerate(numpy_data):
-        assert cudf_nodes[k] == v
+    numpy_nodes = dpr.wrapper.Nodes.NumpyNodes(numpy_data)
+    x = dpr.translate(numpy_nodes, dpr.types.Nodes.CuDFNodesType)
+
+    keys = [0, 1, 2]
+    labels = [33, 22, 11]
+    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels})
+    intermediate = dpr.wrapper.Nodes.CuDFNodes(cdf_unwrapped, "key", "label")
+    y = dpr.translate(x, CuDFNodes)
+    CuDFNodes.Type.assert_equal(y, intermediate)
 
 
 def test_python_nodes_to_cudf_nodes():
-    r = mg.resolver
+    dpr = mg.resolver
     python_data = {1: 11, 2: 22, 3: 33}
-    python_nodes = r.wrapper.Nodes.PythonNodes(python_data)
-    cudf_nodes = r.translate(python_nodes, r.types.Nodes.CuDFNodesType)
-    assert len(cudf_nodes.value) == 3
-    for k, v in python_data.items():
-        assert cudf_nodes[k] == v
+    python_nodes = dpr.wrapper.Nodes.PythonNodes(python_data)
+    x = dpr.translate(python_nodes, dpr.types.Nodes.CuDFNodesType)
+
+    keys = [1, 2, 3]
+    labels = [11, 22, 33]
+    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels})
+    intermediate = dpr.wrapper.Nodes.CuDFNodes(cdf_unwrapped, "key", "label")
+    y = dpr.translate(x, CuDFNodes)
+    CuDFNodes.Type.assert_equal(y, intermediate)

@@ -25,6 +25,7 @@ if has_cugraph and has_cudf:
         node_to_score_df = cugraph.betweenness_centrality(
             sampled_graph, normalized=enable_normalization, endpoints=include_endpoints,
         )
+
         return CuDFNodes(
             node_to_score_df,
             "vertex",

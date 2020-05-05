@@ -11,10 +11,7 @@ if has_cugraph:
 
     @concrete_algorithm("link_analysis.pagerank")
     def cugraph_pagerank(
-        graph: CuGraph,
-        damping: float = 0.85,
-        maxiter: int = 50,
-        tolerance: float = 1e-05,
+        graph: CuGraph, damping: float, maxiter: int, tolerance: float,
     ) -> NumpyNodes:
         pagerank = cugraph.pagerank(
             graph.value, alpha=damping, max_iter=maxiter, tol=tolerance
