@@ -122,7 +122,7 @@ if has_cudf:
                     v1 = d1[obj2.value_label]
                     v2 = d2[obj2.value_label]
                     abs_difference = v1.sub(v2).abs()
-                    tolerable_difference = v2.abs().mul(rtol).add(atol)
+                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
                     assert tolerable_difference.sub(abs_difference).min() >= 0
                 else:
                     assert d1.equals(d2)
@@ -232,33 +232,43 @@ if has_cudf:
             # Compare
             g1 = obj1.value
             g2 = obj2.value
-            # TODO optimize to avoid sorting
-            g1_for_node_comp = (
-                g1[[obj1.src_label, obj1.dst_label]]
-                .rename(
-                    {obj1.src_label: obj2.src_label, obj1.dst_label: obj2.dst_label}
-                )
+            assert len(g1) == len(g2), f"{len(g1)} != {len(g2)}"
+            obj1_columns = [obj1.src_label, obj1.dst_label]
+            obj2_columns = [obj2.src_label, obj2.dst_label]
+            renaming_dict = {
+                obj1.src_label: obj2.src_label,
+                obj1.dst_label: obj2.dst_label,
+            }
+            if obj1._weights != "unweighted" or obj2._weights != "unweighted":
+                renaming_dict[obj1.weight_label] = obj2.weight_label
+            g1 = (
+                g1[[obj1.src_label, obj1.dst_label, obj1.weight_label]]
+                if obj1.weight_label
+                else g1[[obj1.src_label, obj1.dst_label]]
+            )
+            g1 = (
+                g1.rename(renaming_dict)
                 .set_index([obj2.src_label, obj2.dst_label])
                 .sort_index([obj2.src_label, obj2.dst_label])
             )
-            g2_for_node_comp = (
-                g2[[obj2.src_label, obj2.dst_label]]
-                .set_index([obj2.src_label, obj2.dst_label])
-                .sort_index([obj2.src_label, obj2.dst_label])
+            g2 = (
+                g2[[obj2.src_label, obj2.dst_label, obj2.weight_label]]
+                if obj2.weight_label
+                else g2[[obj2.src_label, obj2.dst_label]]
             )
-            assert g1_for_node_comp.equals(
-                g2_for_node_comp
-            ), "g1 and g2 have different nodes"
+            g2 = g2.set_index([obj2.src_label, obj2.dst_label]).sort_index(
+                [obj2.src_label, obj2.dst_label]
+            )
+            assert g1.index.equals(g2.index), "Srcs of g1 and g2 differ."
             if check_values and obj1._weights != "unweighted":
-                # TODO optimize this
-                if check_values and obj1._weights != "unweighted":
-                    # TODO use native cudf
-                    v1 = g1[obj1.weight_label].to_pandas()
-                    v2 = g2[obj2.weight_label].to_pandas()
-                    if issubclass(v1.dtype.type, np.floating):
-                        assert np.isclose(v1, v2, rtol=rel_tol, atol=abs_tol).all()
-                    else:
-                        assert (v1 == v2).all()
+                v1 = g1[obj2.weight_label]
+                v2 = g2[obj2.weight_label]
+                if issubclass(v1.dtype.type, np.floating):
+                    abs_difference = v1.sub(v2).abs()
+                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
+                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                else:
+                    assert v1.equals(v2)
 
 
 if has_cugraph:
