@@ -1,11 +1,21 @@
 import numpy as np
 from metagraph import ConcreteType, Wrapper, dtypes, IndexedNodes
 from metagraph.types import DataFrame, Graph, DTYPE_CHOICES, WEIGHT_CHOICES, Nodes
-from .registry import has_cudf, has_cugraph
+from .registry import has_cudf, has_cugraph, has_cupy
 from typing import List, Dict, Any
 
 if has_cudf:
     import cudf
+
+    def _cudf_series_is_close(s1: cudf.Series, s2: cudf.Series) -> np.array:
+        if has_cupy:
+            import cupy
+
+            return cupy.isclose(s1, s2)
+        abs_difference = s1.sub(s2).abs()
+        tolerable_difference = s2.abs().mul(rel_tol).add(abs_tol)
+        is_close = tolerable_difference.sub(abs_difference).gt(0)
+        return is_close
 
     class CuDFType(ConcreteType, abstract=DataFrame):
         value_type = cudf.DataFrame
@@ -121,9 +131,7 @@ if has_cudf:
                 if obj1._dtype == "float":
                     v1 = d1[obj2.value_label]
                     v2 = d2[obj2.value_label]
-                    abs_difference = v1.sub(v2).abs()
-                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
-                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                    assert all(_cudf_series_is_close(v1, v2))
                 else:
                     assert d1.equals(d2)
 
@@ -264,9 +272,7 @@ if has_cudf:
                 v1 = g1[obj2.weight_label]
                 v2 = g2[obj2.weight_label]
                 if issubclass(v1.dtype.type, np.floating):
-                    abs_difference = v1.sub(v2).abs()
-                    tolerable_difference = v2.abs().mul(rel_tol).add(abs_tol)
-                    assert tolerable_difference.sub(abs_difference).min() >= 0
+                    assert all(_cudf_series_is_close(v1, v2))
                 else:
                     assert v1.equals(v2)
 
