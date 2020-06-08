@@ -31,7 +31,7 @@ Source,Destination
 """
     csv_file = io.StringIO(csv_data)
     cdf_unwrapped = cudf.read_csv(csv_file)
-    x = dpr.wrapper.Graph.CuDFEdgeList(cdf_unwrapped, "Source", "Destination")
+    x = dpr.wrappers.Graph.CuDFEdgeList(cdf_unwrapped, "Source", "Destination")
 
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -49,7 +49,7 @@ def test_cudf_nodes_to_python_nodes():
     keys = [3, 2, 1]
     values = [33, 22, 11]
     cudf_data = cudf.DataFrame({"key": keys, "val": values})
-    x = dpr.wrapper.Nodes.CuDFNodes(cudf_data, "key", "val")
+    x = dpr.wrappers.Nodes.CuDFNodes(cudf_data, "key", "val")
 
     python_dict = {k: v for k, v in zip(keys, values)}
     intermediate = PythonNodes(python_dict)

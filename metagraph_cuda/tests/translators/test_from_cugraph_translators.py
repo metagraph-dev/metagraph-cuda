@@ -23,7 +23,7 @@ v       v /       v
     gdf = cudf.DataFrame({"source": sources, "dst": destinations})
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_edgelist(gdf, source="source", destination="dst")
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 3),
@@ -67,7 +67,7 @@ v        v /        v
     cugraph_graph_unwrapped.from_cudf_edgelist(
         gdf, source="source", destination="destination", edge_attr="weight"
     )
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 3, 1),
@@ -110,7 +110,7 @@ def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
     indices = cudf.Series(sparse_matrix.indices)
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, None)
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 1),
@@ -146,7 +146,7 @@ def test_weighted_directed_adjacency_list_cugraph_to_networkx():
     weights = cudf.Series([1.1, 2.2, 3.3, 4.4, 5.5])
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, weights)
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped, dtype="float")
+    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped, dtype="float")
 
     networkx_graph_data = [
         (0, 1, 1.1),
