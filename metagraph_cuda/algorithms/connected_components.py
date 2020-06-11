@@ -4,14 +4,16 @@ from ..registry import has_cugraph
 
 if has_cugraph:
     import cugraph
-    from ..types import CuGraph, CuDFNodes
+    from ..types import CuGraphEdgeSet, CuDFNodeMap
 
     @concrete_algorithm("clustering.connected_components")
-    def connected_components(graph: CuGraph) -> CuDFNodes:
+    def connected_components(graph: CuGraphEdgeSet) -> CuDFNodeMap:
         df = cugraph.weakly_connected_components(graph.value)
-        return CuDFNodes(df, "vertices", "labels", weights="non-negative")
+        df = df.set_index("vertices")
+        return CuDFNodeMap(df, "labels")
 
     @concrete_algorithm("clustering.strongly_connected_components")
-    def strongly_connected_components(graph: CuGraph) -> CuDFNodes:
+    def strongly_connected_components(graph: CuGraphEdgeSet) -> CuDFNodeMap:
         df = cugraph.strongly_connected_components(graph.value)
-        return CuDFNodes(df, "vertices", "labels", weights="non-negative")
+        df = df.set_index("vertices")
+        return CuDFNodeMap(df, "labels")

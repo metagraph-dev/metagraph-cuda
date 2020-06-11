@@ -4,8 +4,8 @@ import scipy
 import numpy as np
 import cudf
 import cugraph
-from metagraph_cuda.types import CuGraph
-from metagraph.plugins.networkx.types import NetworkXGraph
+from metagraph_cuda.types import CuGraphEdgeSet, CuGraphEdgeMap
+from metagraph.plugins.networkx.types import NetworkXEdgeSet, NetworkXEdgeMap
 
 
 def test_unweighted_directed_edge_list_cugraph_to_nextworkx():
@@ -23,7 +23,7 @@ v       v /       v
     gdf = cudf.DataFrame({"source": sources, "dst": destinations})
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_edgelist(gdf, source="source", destination="dst")
-    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 3),
@@ -40,9 +40,9 @@ v       v /       v
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_edges_from(networkx_graph_data)
-    intermediate = NetworkXGraph(networkx_graph_unwrapped)
-    y = dpr.translate(x, NetworkXGraph)
-    NetworkXGraph.Type.assert_equal(y, intermediate)
+    intermediate = NetworkXEdgeSet(networkx_graph_unwrapped)
+    y = dpr.translate(x, NetworkXEdgeSet)
+    NetworkXEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
 def test_weighted_directed_edge_list_cugraph_to_nextworkx():
@@ -67,7 +67,7 @@ v        v /        v
     cugraph_graph_unwrapped.from_cudf_edgelist(
         gdf, source="source", destination="destination", edge_attr="weight"
     )
-    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.EdgeMap.CuGraphEdgeMap(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 3, 1),
@@ -84,11 +84,9 @@ v        v /        v
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_weighted_edges_from(networkx_graph_data)
-    intermediate = NetworkXGraph(
-        networkx_graph_unwrapped, weight_label="weight", dtype="int"
-    )
-    y = dpr.translate(x, NetworkXGraph)
-    NetworkXGraph.Type.assert_equal(y, intermediate)
+    intermediate = NetworkXEdgeMap(networkx_graph_unwrapped, weight_label="weight")
+    y = dpr.translate(x, NetworkXEdgeMap)
+    NetworkXEdgeMap.Type.assert_equal(y, intermediate, {}, {})
 
 
 def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
@@ -110,7 +108,7 @@ def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
     indices = cudf.Series(sparse_matrix.indices)
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, None)
-    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 1),
@@ -121,9 +119,9 @@ def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_edges_from(networkx_graph_data)
-    intermediate = NetworkXGraph(networkx_graph_unwrapped)
-    y = dpr.translate(x, NetworkXGraph)
-    NetworkXGraph.Type.assert_equal(y, intermediate)
+    intermediate = NetworkXEdgeSet(networkx_graph_unwrapped)
+    y = dpr.translate(x, NetworkXEdgeSet)
+    NetworkXEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
 def test_weighted_directed_adjacency_list_cugraph_to_networkx():
@@ -146,7 +144,7 @@ def test_weighted_directed_adjacency_list_cugraph_to_networkx():
     weights = cudf.Series([1.1, 2.2, 3.3, 4.4, 5.5])
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, weights)
-    x = dpr.wrappers.Graph.CuGraph(cugraph_graph_unwrapped, dtype="float")
+    x = dpr.wrappers.EdgeMap.CuGraphEdgeMap(cugraph_graph_unwrapped)
 
     networkx_graph_data = [
         (0, 1, 1.1),
@@ -157,8 +155,6 @@ def test_weighted_directed_adjacency_list_cugraph_to_networkx():
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_weighted_edges_from(networkx_graph_data)
-    intermediate = NetworkXGraph(
-        networkx_graph_unwrapped, weight_label="weight", dtype="float"
-    )
-    y = dpr.translate(x, NetworkXGraph)
-    NetworkXGraph.Type.assert_equal(y, intermediate)
+    intermediate = NetworkXEdgeMap(networkx_graph_unwrapped, weight_label="weight")
+    y = dpr.translate(x, NetworkXEdgeMap)
+    NetworkXEdgeMap.Type.assert_equal(y, intermediate, {}, {})

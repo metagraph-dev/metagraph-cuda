@@ -6,12 +6,15 @@ if has_cugraph and has_cudf:
     import cugraph
     import cudf
     import random
-    from ..types import CuGraph, CuDFNodes
+    from ..types import CuGraphEdgeMap, CuDFNodeMap
 
     @concrete_algorithm("vertex_ranking.betweenness_centrality")
     def cugraph_betweenness_centrality(
-        graph: CuGraph, k: int, enable_normalization: bool, include_endpoints: bool,
-    ) -> CuDFNodes:
+        graph: CuGraphEdgeMap,
+        k: int,
+        enable_normalization: bool,
+        include_endpoints: bool,
+    ) -> CuDFNodeMap:
         number_of_nodes = graph.value.number_of_nodes()
         if number_of_nodes >= k:
             sampled_graph = graph.value
@@ -25,11 +28,5 @@ if has_cugraph and has_cudf:
         node_to_score_df = cugraph.betweenness_centrality(
             sampled_graph, normalized=enable_normalization, endpoints=include_endpoints,
         )
-
-        return CuDFNodes(
-            node_to_score_df,
-            "vertex",
-            "betweenness_centrality",
-            node_index=graph.node_index,
-            weights="non-negative",
-        )
+        node_to_score_df = node_to_score_df.set_index("vertex")
+        return CuDFNodeMap(node_to_score_df, "betweenness_centrality",)
