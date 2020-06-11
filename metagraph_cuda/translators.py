@@ -13,7 +13,6 @@ from .types import CuDFNodeMap, CuDFEdgeSet, CuDFEdgeMap, CuGraphEdgeSet, CuGrap
 @translator
 def translate_nodes_cudfnodemap2pythonnodemap(x: CuDFNodeMap, **props) -> PythonNodeMap:
     cast = dtype_casting[dtypes.dtypes_simplified[x.value[x.value_label].dtype]]
-    [print(x.value.loc[i.item()].loc[x.value_label]) for i in x.value.index.values]
     data = {
         i.item(): cast(x.value.loc[i.item()].loc[x.value_label])
         for i in x.value.index.values
