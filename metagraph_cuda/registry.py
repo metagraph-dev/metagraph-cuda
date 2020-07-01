@@ -1,7 +1,7 @@
 from metagraph import PluginRegistry
 
 # Use this as the entry_point object
-registry = PluginRegistry()
+registry = PluginRegistry("metagraph_cuda")
 
 
 def find_plugins():
@@ -28,3 +28,10 @@ try:
     has_cugraph = True
 except ImportError:
     has_cugraph = False
+
+try:
+    import cupy as _
+
+    has_cupy = True
+except ImportError:
+    has_cupy = False

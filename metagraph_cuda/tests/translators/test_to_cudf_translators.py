@@ -6,10 +6,10 @@ import scipy
 import cugraph
 import cudf
 import io
-from metagraph_cuda.types import CuDFEdgeList, CuDFNodes
+from metagraph_cuda.types import CuDFEdgeSet, CuDFNodeMap
 
 
-def test_pandas_edge_list_to_cudf_edge_list():
+def test_pandas_edge_set_to_cudf_edge_set():
     """
           +-+
  ------>  |1|
@@ -33,18 +33,18 @@ Source,Destination
 """
     csv_file = io.StringIO(csv_data)
     pdf_unwrapped = pd.read_csv(csv_file)
-    x = dpr.wrapper.Graph.PandasEdgeList(pdf_unwrapped, "Source", "Destination")
+    x = dpr.wrappers.EdgeSet.PandasEdgeSet(pdf_unwrapped, "Source", "Destination")
 
     csv_file = io.StringIO(csv_data)
     cdf_unwrapped = cudf.read_csv(csv_file)
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
         cdf_unwrapped, "Source", "Destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_unweighted_directed_networkx_to_cudf_edge_list():
+def test_unweighted_directed_networkx_to_cudf_edge_set():
     """
           +-+
  ------>  |1|
@@ -67,19 +67,19 @@ def test_unweighted_directed_networkx_to_cudf_edge_list():
     ]
     networkx_graph_unwrapped = nx.DiGraph()
     networkx_graph_unwrapped.add_edges_from(networkx_graph_data)
-    x = dpr.wrapper.Graph.NetworkXGraph(networkx_graph_unwrapped)
+    x = dpr.wrappers.EdgeSet.NetworkXEdgeSet(networkx_graph_unwrapped)
 
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
     cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
         cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_weighted_directed_networkx_to_cudf_edge_list():
+def test_weighted_directed_networkx_to_cudf_edge_set():
     """
           +-+
  ----9->  |1|
@@ -106,7 +106,7 @@ def test_weighted_directed_networkx_to_cudf_edge_list():
     networkx_graph_unwrapped.add_weighted_edges_from(
         networkx_graph_data, weight="weight"
     )
-    x = dpr.wrapper.Graph.NetworkXGraph(networkx_graph_unwrapped, weight_label="weight")
+    x = dpr.wrappers.EdgeSet.NetworkXEdgeSet(networkx_graph_unwrapped)
 
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -114,14 +114,14 @@ def test_weighted_directed_networkx_to_cudf_edge_list():
     cdf_unwrapped = cudf.DataFrame(
         {"source": sources, "destination": destinations, "weight": weights}
     )
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
-        cdf_unwrapped, "source", "destination", "weight"
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
+        cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_unweighted_directed_edge_list_cugraph_to_cudf_edge_list():
+def test_unweighted_directed_edge_set_cugraph_to_cudf_edge_set():
     """
 0 < -   1       5   - > 6
       ^       ^ ^       
@@ -135,17 +135,17 @@ v       v /       v
     gdf = cudf.DataFrame({"source": sources, "dst": destinations})
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_edgelist(gdf, source="source", destination="dst")
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
 
     cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
         cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_weighted_directed_edge_list_cugraph_to_cudf_edge_list():
+def test_weighted_directed_edge_set_cugraph_to_cudf_edge_set():
     """
 0 <--2-- 1        5 --10-> 6
 |      ^ |      ^ ^      / 
@@ -166,20 +166,20 @@ v        v /        v
     cugraph_graph_unwrapped.from_cudf_edgelist(
         gdf, source="source", destination="destination", edge_attr="weight"
     )
-    cugraph_graph = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    x = dpr.translate(cugraph_graph, dpr.types.Graph.CuDFEdgeListType)
+    cugraph_graph = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
+    x = dpr.translate(cugraph_graph, dpr.types.EdgeSet.CuDFEdgeSetType)
 
     cdf_unwrapped = cudf.DataFrame(
         {"source": sources, "destination": destinations, "weight": weights}
     )
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
-        cdf_unwrapped, "source", "destination", "weight"
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
+        cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_unweighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
+def test_unweighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     """
 0 -----> 1 
 ^^       | 
@@ -198,20 +198,20 @@ def test_unweighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     indices = cudf.Series(sparse_matrix.indices)
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, None)
-    cugraph_graph = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
-    x = dpr.translate(cugraph_graph, dpr.types.Graph.CuDFEdgeListType)
+    cugraph_graph = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
+    x = dpr.translate(cugraph_graph, dpr.types.EdgeSet.CuDFEdgeSetType)
 
     sources = [0, 1, 2, 3, 3]
     destinations = [1, 3, 0, 2, 0]
     cdf_unwrapped = cudf.DataFrame({"source": sources, "destination": destinations})
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
         cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
-def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
+def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     """
 0 -1.1-> 1 
 ^^       | 
@@ -231,7 +231,7 @@ def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     weights = cudf.Series([1.1, 2.2, 3.3, 4.4, 5.5])
     cugraph_graph_unwrapped = cugraph.DiGraph()
     cugraph_graph_unwrapped.from_cudf_adjlist(offsets, indices, weights)
-    x = dpr.wrapper.Graph.CuGraph(cugraph_graph_unwrapped)
+    x = dpr.wrappers.EdgeSet.CuGraphEdgeSet(cugraph_graph_unwrapped)
 
     sources = [0, 1, 2, 3, 3]
     destinations = [1, 3, 0, 0, 2]
@@ -239,36 +239,36 @@ def test_weighted_directed_adjacency_list_cugraph_to_cudf_edge_list():
     cdf_unwrapped = cudf.DataFrame(
         {"source": sources, "destination": destinations, "weight": weights}
     )
-    intermediate = dpr.wrapper.Graph.CuDFEdgeList(
-        cdf_unwrapped, "source", "destination", "weight"
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
+        cdf_unwrapped, "source", "destination"
     )
-    y = dpr.translate(x, CuDFEdgeList)
-    CuDFEdgeList.Type.assert_equal(y, intermediate)
+    y = dpr.translate(x, CuDFEdgeSet)
+    CuDFEdgeSet.Type.assert_equal(y, intermediate, {}, {})
 
 
 def test_numpy_nodes_to_cudf_nodes():
     dpr = mg.resolver
     numpy_data = np.array([33, 22, 11])
-    numpy_nodes = dpr.wrapper.Nodes.NumpyNodes(numpy_data)
-    x = dpr.translate(numpy_nodes, dpr.types.Nodes.CuDFNodesType)
+    numpy_nodes = dpr.wrappers.NodeMap.NumpyNodeMap(numpy_data)
+    x = dpr.translate(numpy_nodes, dpr.types.NodeMap.CuDFNodeMapType)
 
     keys = [0, 1, 2]
     labels = [33, 22, 11]
-    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels})
-    intermediate = dpr.wrapper.Nodes.CuDFNodes(cdf_unwrapped, "key", "label")
-    y = dpr.translate(x, CuDFNodes)
-    CuDFNodes.Type.assert_equal(y, intermediate)
+    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels}).set_index("key")
+    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
+    y = dpr.translate(x, CuDFNodeMap)
+    CuDFNodeMap.Type.assert_equal(y, intermediate, {}, {})
 
 
 def test_python_nodes_to_cudf_nodes():
     dpr = mg.resolver
     python_data = {1: 11, 2: 22, 3: 33}
-    python_nodes = dpr.wrapper.Nodes.PythonNodes(python_data)
-    x = dpr.translate(python_nodes, dpr.types.Nodes.CuDFNodesType)
+    python_nodes = dpr.wrappers.NodeMap.PythonNodeMap(python_data)
+    x = dpr.translate(python_nodes, dpr.types.NodeMap.CuDFNodeMapType)
 
     keys = [1, 2, 3]
     labels = [11, 22, 33]
-    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels})
-    intermediate = dpr.wrapper.Nodes.CuDFNodes(cdf_unwrapped, "key", "label")
-    y = dpr.translate(x, CuDFNodes)
-    CuDFNodes.Type.assert_equal(y, intermediate)
+    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels}).set_index("key")
+    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
+    y = dpr.translate(x, CuDFNodeMap)
+    CuDFNodeMap.Type.assert_equal(y, intermediate, {}, {})
