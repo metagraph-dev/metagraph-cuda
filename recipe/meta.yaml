@@ -22,6 +22,7 @@ requirements:
     - setuptools
     - metagraph
     - cudf
+    - cupy
     - cugraph
 
 test:
@@ -29,6 +30,8 @@ test:
     - pytest
     - cudf
     - cugraph
+    - pandas
+    - networkx
 #    - pytest-cov
 #    - coverage
 #    - black
