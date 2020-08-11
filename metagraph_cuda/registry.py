@@ -28,10 +28,3 @@ try:
     has_cugraph = True
 except ImportError:
     has_cugraph = False
-
-try:
-    import cupy as _
-
-    has_cupy = True
-except ImportError:
-    has_cupy = False

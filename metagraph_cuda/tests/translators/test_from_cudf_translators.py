@@ -41,7 +41,7 @@ Source,Destination
     )
     intermediate = PandasEdgeSet(pdf, "source", "destination")
     y = dpr.translate(x, PandasEdgeSet)
-    PandasEdgeSet.Type.assert_equal(y, intermediate, {}, {})
+    dpr.assert_equal(y, intermediate)
 
 
 def test_cudf_node_map_to_python_node_map():
@@ -54,4 +54,4 @@ def test_cudf_node_map_to_python_node_map():
     python_dict = {k: v for k, v in zip(keys, values)}
     intermediate = PythonNodeMap(python_dict)
     y = dpr.translate(x, PythonNodeMap)
-    PythonNodeMap.Type.assert_equal(y, intermediate, {}, {})
+    dpr.assert_equal(y, intermediate)

@@ -4,12 +4,15 @@ from typing import Tuple, Any
 
 if has_cugraph:
     import cugraph
-    from ..types import CuGraphEdgeSet
-    from metagraph.plugins.numpy.types import NumpyVector
+    from ..types import CuGraph, CuDFVector
 
-    @concrete_algorithm("traversal.breadth_first_search")
-    def breadth_first_search(graph: CuGraphEdgeSet, source_node: NodeID) -> NumpyVector:
-        bfs_df = cugraph.bfs(graph.value, 0)
+    @concrete_algorithm("traversal.bfs_iter")
+    def breadth_first_search(
+        graph: CuGraph, source_node: NodeID, depth_limit: int
+    ) -> CuDFVector:
+        bfs_df = cugraph.bfs(graph.edges.value, source_node)
         bfs_df = bfs_df[bfs_df.predecessor.isin(bfs_df.vertex) | (bfs_df.distance == 0)]
-        bfs_ordered_vertices = bfs_df.sort_values("distance").vertex.to_array()
-        return NumpyVector(bfs_ordered_vertices)
+        bfs_ordered_vertices = bfs_df.sort_values("distance").vertex.reset_index(
+            drop=True
+        )
+        return CuDFVector(bfs_ordered_vertices)
