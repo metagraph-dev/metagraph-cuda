@@ -81,8 +81,8 @@ if has_cudf:
                             )
                         else:
                             ret[prop] = (
-                                obj.value.index.min == 0
-                                and obj.value.index.max == len(obj.value) - 1
+                                obj.value.index.min() == 0
+                                and obj.value.index.max() == len(obj.value) - 1
                             )
                     if prop == "dtype":
                         ret[prop] = dtypes.dtypes_simplified[obj.value.dtype]

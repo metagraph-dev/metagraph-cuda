@@ -248,7 +248,7 @@ def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     dpr.assert_equal(y, intermediate)
 
 
-def test_numpy_nodes_to_cudf_nodes():
+def test_numpy_node_map_to_cudf_nodemap():
     dpr = mg.resolver
     numpy_data = np.array([33, 22, 11])
     numpy_nodes = dpr.wrappers.NodeMap.NumpyNodeMap(numpy_data)
@@ -262,7 +262,7 @@ def test_numpy_nodes_to_cudf_nodes():
     dpr.assert_equal(y, intermediate)
 
 
-def test_python_nodes_to_cudf_nodes():
+def test_python_node_map_to_cudf_nodemap():
     dpr = mg.resolver
     python_data = {1: 11, 2: 22, 3: 33}
     python_nodes = dpr.wrappers.NodeMap.PythonNodeMap(python_data)

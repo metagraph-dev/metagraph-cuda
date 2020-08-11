@@ -83,6 +83,41 @@ def translate_nodes_numpynodemap2cudfnodemap(x: NumpyNodeMap, **props) -> CuDFNo
 
 
 @translator
+def translate_nodes_cudfnodemap2numpynodemap(x: CuDFNodeMap, **props) -> NumpyNodeMap:
+    if isinstance(x.value.index, cudf.core.index.RangeIndex):
+        x_index_min = x.value.index.start
+        x_index_max = x.value.index.stop - 1
+    else:
+        x_index_min = x.value.index.min()
+        x_index_max = x.value.index.max()
+    x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
+    if x_density == 1.0:
+        data = np.empty(len(x.value), dtype=x.value[x.value_label].dtype)
+        print(f"x.value.index.values {repr(x.value.index.values)}")
+        print(f"x.value[x.value_label].values {repr(x.value[x.value_label].values)}")
+        data[cupy.asnumpy(x.value.index.values)] = cupy.asnumpy(
+            x.value[x.value_label].values
+        )
+        mask = None
+        node_ids = None
+    elif x_density > 0.5:  # TODO consider moving this threshold out to a global
+        data = np.empty(x_index_max + 1, dtype=x.value[x.value_label].dtype)
+        position_selector = cupy.asnumpy(x.value.index.values)
+        data[position_selector] = cupy.asnumpy(x.value[x.value_label].values)
+        mask = np.zeros(x_index_max + 1, dtype=bool)
+        mask[position_selector] = True
+        node_ids = None
+    else:
+        df_index_sorted = (
+            x.value.sort_index()
+        )  # O(n log n), but n is small since not dense
+        data = cupy.asnumpy(df_index_sorted[x.value_label].values)
+        node_ids = dict(map(reversed, enumerate(df_index_sorted.index)))
+        mask = None
+    return NumpyNodeMap(data, mask=mask, node_ids=node_ids)
+
+
+@translator
 def translate_graph_cudfedgeset2cugraphedgeset(
     x: CuDFEdgeSet, **props
 ) -> CuGraphEdgeSet:
