@@ -6,7 +6,7 @@ import cudf
 import io
 from metagraph.plugins.pandas.types import PandasEdgeSet
 from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap
-from metagraph.plugins.numpy.types import NumpyNodeMap
+from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap
 
 
 def test_cudf_edge_set_to_pandas_edge_set():
@@ -100,9 +100,31 @@ def test_sparse_cudf_node_map_to_numpy_node_map():
 
 def test_cudf_node_set_to_python_node_set():
     dpr = mg.resolver
-    python_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
-    x = dpr.translate(python_nodes, dpr.types.NodeSet.CuDFNodeSetType)
+    cudf_node_set = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
+    x = dpr.translate(cudf_node_set, dpr.types.NodeSet.CuDFNodeSetType)
 
     intermediate = dpr.wrappers.NodeSet.PythonNodeSet({3, 4, 2, 1})
     y = dpr.translate(x, PythonNodeSet)
+    dpr.assert_equal(y, intermediate)
+
+
+def test_dense_cudf_node_set_to_numpy_node_set():
+    dpr = mg.resolver
+    numpy_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
+    x = dpr.translate(numpy_nodes, dpr.types.NodeSet.CuDFNodeSetType)
+
+    intermediate = dpr.wrappers.NodeSet.NumpyNodeSet(
+        mask=np.array([0, 1, 1, 1, 1], dtype=bool)
+    )
+    y = dpr.translate(x, NumpyNodeSet)
+    dpr.assert_equal(y, intermediate)
+
+
+def test_sparse_cudf_node_set_to_numpy_node_set():
+    dpr = mg.resolver
+    numpy_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([200, 300, 400, 100]))
+    x = dpr.translate(numpy_nodes, dpr.types.NodeSet.CuDFNodeSetType)
+
+    intermediate = dpr.wrappers.NodeSet.NumpyNodeSet(node_ids={200, 300, 400, 100})
+    y = dpr.translate(x, NumpyNodeSet)
     dpr.assert_equal(y, intermediate)

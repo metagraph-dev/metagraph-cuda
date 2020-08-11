@@ -6,7 +6,7 @@ import numpy as np
 import cudf
 import cugraph
 import cupy
-from metagraph.plugins.numpy.types import NumpyNodeMap, NumpyVector
+from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap, NumpyVector
 from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap, dtype_casting
 from .types import (
     CuDFVector,
@@ -93,8 +93,6 @@ def translate_nodes_cudfnodemap2numpynodemap(x: CuDFNodeMap, **props) -> NumpyNo
     x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
     if x_density == 1.0:
         data = np.empty(len(x.value), dtype=x.value[x.value_label].dtype)
-        print(f"x.value.index.values {repr(x.value.index.values)}")
-        print(f"x.value[x.value_label].values {repr(x.value[x.value_label].values)}")
         data[cupy.asnumpy(x.value.index.values)] = cupy.asnumpy(
             x.value[x.value_label].values
         )
@@ -115,6 +113,32 @@ def translate_nodes_cudfnodemap2numpynodemap(x: CuDFNodeMap, **props) -> NumpyNo
         node_ids = dict(map(reversed, enumerate(df_index_sorted.index)))
         mask = None
     return NumpyNodeMap(data, mask=mask, node_ids=node_ids)
+
+
+@translator
+def translate_nodes_numpynodeset2cudfnodeset(x: NumpyNodeSet, **props) -> CuDFNodeSet:
+    data = cudf.Series(x.nodes())
+    return CuDFNodeSet(data)
+
+
+@translator
+def translate_nodes_cudfnodeset2numpynodeset(x: CuDFNodeSet, **props) -> NumpyNodeSet:
+    if isinstance(x.value.index, cudf.core.index.RangeIndex):
+        x_index_min = x.value.index.start
+        x_index_max = x.value.index.stop - 1
+    else:
+        x_index_min = x.value.index.min()
+        x_index_max = x.value.index.max()
+    x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
+    node_positions = cupy.asnumpy(x.value.index.values)
+    if x_density > 0.5:  # TODO consider moving this threshold out to a global
+        mask = np.zeros(x_index_max + 1, dtype=bool)
+        mask[node_positions] = True
+        node_ids = None
+    else:
+        node_ids = node_positions
+        mask = None
+    return NumpyNodeSet(node_ids=node_ids, mask=mask)
 
 
 @translator
