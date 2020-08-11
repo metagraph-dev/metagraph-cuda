@@ -5,16 +5,13 @@ import numpy as np
 
 if has_cugraph:
     import cugraph
-    from ..types import CuGraphEdgeMap
-    from metagraph.plugins.numpy.types import NumpyNodeMap
+    from ..types import CuGraph, CuDFNodeMap
 
-    @concrete_algorithm("link_analysis.pagerank")
+    @concrete_algorithm("centrality.pagerank")
     def cugraph_pagerank(
-        graph: CuGraphEdgeMap, damping: float, maxiter: int, tolerance: float,
-    ) -> NumpyNodeMap:
+        graph: CuGraph, damping: float, maxiter: int, tolerance: float,
+    ) -> CuDFNodeMap:
         pagerank = cugraph.pagerank(
-            graph.value, alpha=damping, max_iter=maxiter, tol=tolerance
-        )
-        out = np.full((graph.value.number_of_nodes(),), np.nan)
-        out[pagerank["vertex"]] = pagerank["pagerank"]
-        return NumpyNodeMap(out)
+            graph.edges.value, alpha=damping, max_iter=maxiter, tol=tolerance
+        ).set_index("vertex")
+        return CuDFNodeMap(pagerank, "pagerank")

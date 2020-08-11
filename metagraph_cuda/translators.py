@@ -5,9 +5,19 @@ from metagraph.plugins import has_pandas, has_networkx
 import numpy as np
 import cudf
 import cugraph
-from metagraph.plugins.numpy.types import NumpyNodeMap
-from metagraph.plugins.python.types import PythonNodeMap, dtype_casting
-from .types import CuDFNodeMap, CuDFEdgeSet, CuDFEdgeMap, CuGraphEdgeSet, CuGraphEdgeMap
+import cupy
+from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap, NumpyVector
+from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap, dtype_casting
+from .types import (
+    CuDFVector,
+    CuDFNodeSet,
+    CuDFNodeMap,
+    CuDFEdgeSet,
+    CuDFEdgeMap,
+    CuGraphEdgeSet,
+    CuGraphEdgeMap,
+    CuGraph,
+)
 
 
 @translator
@@ -29,11 +39,106 @@ def translate_nodes_pythonnodemap2cudfnodemap(x: PythonNodeMap, **props) -> CuDF
 
 
 @translator
+def translate_nodes_cudfnodeset2pythonnodeset(x: CuDFNodeSet, **props) -> PythonNodeSet:
+    return PythonNodeSet(set(x.value.index))
+
+
+@translator
+def translate_nodes_pythonnodeset2cudfnodeset(x: PythonNodeSet, **props) -> CuDFNodeSet:
+    return CuDFNodeSet(cudf.Series(x.value))
+
+
+@translator
+def translate_nodes_numpyvector2cudfvector(x: NumpyVector, **props) -> CuDFVector:
+    if x.mask is not None:
+        data = x.value[x.mask]
+        series = cudf.Series(data).set_index(np.flatnonzero(x.mask))
+    else:
+        data = x.value
+        series = cudf.Series(data)
+    return CuDFVector(series)
+
+
+@translator
+def translate_graph_cudfvector2numpyvector(x: CuDFVector, **props) -> NumpyVector:
+    is_dense = CuDFVector.Type.compute_abstract_properties(x, {"is_dense"})["is_dense"]
+    if is_dense:
+        np_vector = cupy.asnumpy(x.value.sort_index().values)
+        mask = None
+    else:
+        index_as_np_array = x.value.index.to_array()
+        np_vector = np.empty(len(x), dtype=x.value.dtype)
+        np_vector[index_as_np_array] = cupy.asnumpy(x.value.values)
+        mask = np.zeros(len(x), dtype=bool)
+        mask[index_as_np_array] = True
+    return NumpyVector(np_vector, mask)
+
+
+@translator
 def translate_nodes_numpynodemap2cudfnodemap(x: NumpyNodeMap, **props) -> CuDFNodeMap:
     idx = np.arange(len(x.value))
     vals = x.value[idx]
     data = cudf.DataFrame({"value": vals})
     return CuDFNodeMap(data, "value")
+
+
+@translator
+def translate_nodes_cudfnodemap2numpynodemap(x: CuDFNodeMap, **props) -> NumpyNodeMap:
+    if isinstance(x.value.index, cudf.core.index.RangeIndex):
+        x_index_min = x.value.index.start
+        x_index_max = x.value.index.stop - 1
+    else:
+        x_index_min = x.value.index.min()
+        x_index_max = x.value.index.max()
+    x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
+    if x_density == 1.0:
+        data = np.empty(len(x.value), dtype=x.value[x.value_label].dtype)
+        data[cupy.asnumpy(x.value.index.values)] = cupy.asnumpy(
+            x.value[x.value_label].values
+        )
+        mask = None
+        node_ids = None
+    elif x_density > 0.5:  # TODO consider moving this threshold out to a global
+        data = np.empty(x_index_max + 1, dtype=x.value[x.value_label].dtype)
+        position_selector = cupy.asnumpy(x.value.index.values)
+        data[position_selector] = cupy.asnumpy(x.value[x.value_label].values)
+        mask = np.zeros(x_index_max + 1, dtype=bool)
+        mask[position_selector] = True
+        node_ids = None
+    else:
+        df_index_sorted = (
+            x.value.sort_index()
+        )  # O(n log n), but n is small since not dense
+        data = cupy.asnumpy(df_index_sorted[x.value_label].values)
+        node_ids = dict(map(reversed, enumerate(df_index_sorted.index)))
+        mask = None
+    return NumpyNodeMap(data, mask=mask, node_ids=node_ids)
+
+
+@translator
+def translate_nodes_numpynodeset2cudfnodeset(x: NumpyNodeSet, **props) -> CuDFNodeSet:
+    data = cudf.Series(x.nodes())
+    return CuDFNodeSet(data)
+
+
+@translator
+def translate_nodes_cudfnodeset2numpynodeset(x: CuDFNodeSet, **props) -> NumpyNodeSet:
+    if isinstance(x.value.index, cudf.core.index.RangeIndex):
+        x_index_min = x.value.index.start
+        x_index_max = x.value.index.stop - 1
+    else:
+        x_index_min = x.value.index.min()
+        x_index_max = x.value.index.max()
+    x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
+    node_positions = cupy.asnumpy(x.value.index.values)
+    if x_density > 0.5:  # TODO consider moving this threshold out to a global
+        mask = np.zeros(x_index_max + 1, dtype=bool)
+        mask[node_positions] = True
+        node_ids = None
+    else:
+        node_ids = node_positions
+        mask = None
+    return NumpyNodeSet(node_ids=node_ids, mask=mask)
 
 
 @translator
@@ -84,82 +189,77 @@ def translate_graph_cugraphedgemap2cudfedgemap(
 if has_networkx:
     import cudf
     import networkx as nx
-    from metagraph.plugins.networkx.types import NetworkXEdgeMap, NetworkXEdgeSet
+    from metagraph.plugins.networkx.types import NetworkXGraph
 
     @translator
-    def translate_graph_cugraphedgeset2networkxedgeset(
-        x: CuGraphEdgeSet, **props
-    ) -> NetworkXEdgeSet:
-        out = nx.DiGraph() if isinstance(x.value, cugraph.DiGraph) else nx.Graph()
-        column_name_to_series_set = {
+    def translate_graph_cugraphgraph2networkxgraph(
+        x: CuGraph, **props
+    ) -> NetworkXGraph:
+        aprops = CuGraph.Type.compute_abstract_properties(
+            x, {"is_directed", "edge_type"}
+        )
+        is_directed = aprops["is_directed"]
+        out = nx.DiGraph() if is_directed else nx.Graph()
+        column_name_to_series = {
             column_name: series
-            for column_name, series in x.value.view_edge_list().iteritems()
+            for column_name, series in x.edges.value.view_edge_list().iteritems()
         }
-        source_destination_weight_pairs = zip(
-            column_name_to_series_set["src"], column_name_to_series_set["dst"]
-        )
-        out.add_edges_from(source_destination_weight_pairs)
-        return NetworkXEdgeSet(out)
+        if aprops["edge_type"] == "set":
+            ebunch = zip(
+                column_name_to_series["src"].tolist(),
+                column_name_to_series["dst"].tolist(),
+            )
+            out.add_edges_from(ebunch)
+        else:
+            ebunch = zip(
+                column_name_to_series["src"].tolist(),
+                column_name_to_series["dst"].tolist(),
+                column_name_to_series["weights"].tolist(),
+            )
+            out.add_weighted_edges_from(ebunch)
+        # TODO take care of node weights
+        return NetworkXGraph(out)
 
     @translator
-    def translate_graph_cugraphedgemap2networkxedgemap(
-        x: CuGraphEdgeMap, **props
-    ) -> NetworkXEdgeMap:
-        out = nx.DiGraph() if isinstance(x.value, cugraph.DiGraph) else nx.Graph()
-        column_name_to_series_map = {
-            column_name: series
-            for column_name, series in x.value.view_edge_list().iteritems()
-        }
-        source_destination_weight_triples = zip(
-            column_name_to_series_map["src"],
-            column_name_to_series_map["dst"],
-            column_name_to_series_map["weights"],
+    def translate_graph_networkx2cugraph(x: NetworkXGraph, **props) -> CuGraph:
+        aprops = NetworkXGraph.Type.compute_abstract_properties(
+            x, {"edge_type", "node_type", "is_directed"}
         )
-        out.add_weighted_edges_from(source_destination_weight_triples)
-        return NetworkXEdgeMap(out)
+        is_weighted = aprops["edge_type"] == "map"
+        has_node_weights = aprops["node_type"] == "map"
+        is_directed = aprops["is_directed"]
 
-
-if has_networkx:
-    import cudf
-    from metagraph.plugins.networkx.types import NetworkXEdgeMap, NetworkXEdgeSet
-
-    @translator
-    def translate_graph_networkxedgeset2cudfedgeset(
-        x: NetworkXEdgeSet, **props
-    ) -> CuDFEdgeSet:
-        edgelist = x.value.edges(data=False)
-        source_nodes, target_nodes = zip(*edgelist)
-        cdf = cudf.DataFrame({"source": source_nodes, "destination": target_nodes})
-        return CuDFEdgeSet(
-            cdf,
-            src_label="source",
-            dst_label="destination",
-            is_directed=isinstance(x.value, nx.DiGraph),
-        )
-
-    @translator
-    def translate_graph_networkxedgemap2cudfedgemap(
-        x: NetworkXEdgeMap, **props
-    ) -> CuDFEdgeMap:
-        edgelist = x.value.edges(data=True)
-        source_nodes, target_nodes, node_data_dicts = zip(*edgelist)
-        cdf_data = {"source": source_nodes, "destination": target_nodes}
-        cdf_data.update(
-            {
-                x.weight_label: [
-                    data_dict.get(x.weight_label, float("nan"))
-                    for data_dict in node_data_dicts
-                ]
-            }
-        )
-        cdf = cudf.DataFrame(cdf_data)
-        return CuDFEdgeMap(
-            cdf,
-            src_label="source",
-            dst_label="destination",
-            weight_label=x.weight_label,
-            is_directed=isinstance(x.value, nx.DiGraph),
-        )
+        g = cugraph.DiGraph() if is_directed else cugraph.Graph()
+        if is_weighted:
+            edgelist = x.value.edges(data=True)
+            source_nodes, target_nodes, node_data_dicts = zip(*edgelist)
+            cdf_data = {"source": source_nodes, "destination": target_nodes}
+            cdf_data[x.edge_weight_label] = [
+                data_dict[x.edge_weight_label] for data_dict in node_data_dicts
+            ]
+            cdf = cudf.DataFrame(cdf_data)
+            g.from_cudf_edgelist(
+                cdf,
+                source="source",
+                destination="destination",
+                edge_attr=x.edge_weight_label,
+            )
+            edges = CuGraphEdgeMap(g)
+        else:
+            edgelist = x.value.edges()
+            source_nodes, target_nodes = zip(*edgelist)
+            cdf_data = {"source": source_nodes, "destination": target_nodes}
+            cdf = cudf.DataFrame(cdf_data)
+            g.from_cudf_edgelist(cdf, source="source", destination="destination")
+            edges = CuGraphEdgeSet(g)
+        if has_node_weights:
+            nodes = None
+            # TODO implement this via a CuDFNodeMap
+        else:
+            # TODO check for orphan nodes
+            nodes = None
+            # TODO implement this via a CuDFNodeMap
+        return CuGraph(edges, nodes)
 
 
 if has_pandas:
