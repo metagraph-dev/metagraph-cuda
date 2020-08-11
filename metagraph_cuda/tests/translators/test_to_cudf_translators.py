@@ -6,7 +6,7 @@ import scipy
 import cugraph
 import cudf
 import io
-from metagraph_cuda.types import CuDFEdgeSet, CuDFNodeMap, CuGraph
+from metagraph_cuda.types import CuDFNodeMap, CuDFNodeSet, CuDFEdgeSet, CuGraph
 
 
 def test_pandas_edge_set_to_cudf_edge_set():
@@ -248,7 +248,7 @@ def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     dpr.assert_equal(y, intermediate)
 
 
-def test_numpy_node_map_to_cudf_nodemap():
+def test_numpy_node_map_to_cudf_node_map():
     dpr = mg.resolver
     numpy_data = np.array([33, 22, 11])
     numpy_nodes = dpr.wrappers.NodeMap.NumpyNodeMap(numpy_data)
@@ -262,7 +262,7 @@ def test_numpy_node_map_to_cudf_nodemap():
     dpr.assert_equal(y, intermediate)
 
 
-def test_python_node_map_to_cudf_nodemap():
+def test_python_node_map_to_cudf_node_map():
     dpr = mg.resolver
     python_data = {1: 11, 2: 22, 3: 33}
     python_nodes = dpr.wrappers.NodeMap.PythonNodeMap(python_data)
@@ -273,4 +273,15 @@ def test_python_node_map_to_cudf_nodemap():
     cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels}).set_index("key")
     intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
     y = dpr.translate(x, CuDFNodeMap)
+    dpr.assert_equal(y, intermediate)
+
+
+def test_python_node_set_to_cudf_node_set():
+    dpr = mg.resolver
+    python_data = {3, 4, 2, 1}
+    python_nodes = dpr.wrappers.NodeSet.PythonNodeSet(python_data)
+    x = dpr.translate(python_nodes, dpr.types.NodeSet.CuDFNodeSetType)
+
+    intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
+    y = dpr.translate(x, CuDFNodeSet)
     dpr.assert_equal(y, intermediate)

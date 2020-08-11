@@ -5,7 +5,7 @@ import cugraph
 import cudf
 import io
 from metagraph.plugins.pandas.types import PandasEdgeSet
-from metagraph.plugins.python.types import PythonNodeMap
+from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap
 from metagraph.plugins.numpy.types import NumpyNodeMap
 
 
@@ -95,4 +95,14 @@ def test_sparse_cudf_node_map_to_numpy_node_map():
 
     intermediate = NumpyNodeMap(np.array([3, 4], dtype=int), node_ids={300: 0, 400: 1})
     y = dpr.translate(x, NumpyNodeMap)
+    dpr.assert_equal(y, intermediate)
+
+
+def test_cudf_node_set_to_python_node_set():
+    dpr = mg.resolver
+    python_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
+    x = dpr.translate(python_nodes, dpr.types.NodeSet.CuDFNodeSetType)
+
+    intermediate = dpr.wrappers.NodeSet.PythonNodeSet({3, 4, 2, 1})
+    y = dpr.translate(x, PythonNodeSet)
     dpr.assert_equal(y, intermediate)
