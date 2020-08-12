@@ -1,5 +1,5 @@
 from metagraph import translator, dtypes
-from metagraph.plugins import has_pandas, has_networkx
+from metagraph.plugins import has_pandas, has_networkx, has_scipy
 
 
 import numpy as np
@@ -18,6 +18,18 @@ from .types import (
     CuGraphEdgeMap,
     CuGraph,
 )
+
+
+@translator
+def cudf_nodemap_to_nodeset(x: CuDFNodeMap, **props) -> CuDFNodeSet:
+    return CuDFNodeSet(x.value.index.to_series())
+
+
+@translator
+def cudf_edgemap_to_edgeset(x: CuDFEdgeMap, **props) -> CuDFEdgeSet:
+    return CuDFEdgeSet(
+        x.value.copy(), x.src_label, x.dst_label, is_directed=x.is_directed
+    )
 
 
 @translator
@@ -60,7 +72,7 @@ def translate_nodes_numpyvector2cudfvector(x: NumpyVector, **props) -> CuDFVecto
 
 
 @translator
-def translate_graph_cudfvector2numpyvector(x: CuDFVector, **props) -> NumpyVector:
+def translate_vector_cudfvector2numpyvector(x: CuDFVector, **props) -> NumpyVector:
     is_dense = CuDFVector.Type.compute_abstract_properties(x, {"is_dense"})["is_dense"]
     if is_dense:
         np_vector = cupy.asnumpy(x.value.sort_index().values)
@@ -142,7 +154,7 @@ def translate_nodes_cudfnodeset2numpynodeset(x: CuDFNodeSet, **props) -> NumpyNo
 
 
 @translator
-def translate_graph_cudfedgeset2cugraphedgeset(
+def translate_edgeset_cudfedgeset2cugraphedgeset(
     x: CuDFEdgeSet, **props
 ) -> CuGraphEdgeSet:
     cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
@@ -151,7 +163,7 @@ def translate_graph_cudfedgeset2cugraphedgeset(
 
 
 @translator
-def translate_graph_cudfedgemap2cugraphedgemap(
+def translate_edgemap_cudfedgemap2cugraphedgemap(
     x: CuDFEdgeMap, **props
 ) -> CuGraphEdgeMap:
     cugraph_graph = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
@@ -162,7 +174,7 @@ def translate_graph_cudfedgemap2cugraphedgemap(
 
 
 @translator
-def translate_graph_cugraphedgeset2cudfedgeset(
+def translate_edgeset_cugraphedgeset2cudfedgeset(
     x: CuGraphEdgeSet, **props
 ) -> CuDFEdgeSet:
     return CuDFEdgeSet(
@@ -174,7 +186,7 @@ def translate_graph_cugraphedgeset2cudfedgeset(
 
 
 @translator
-def translate_graph_cugraphedgemap2cudfedgemap(
+def translate_edgemap_cugraphedgemap2cudfedgemap(
     x: CuGraphEdgeMap, **props
 ) -> CuDFEdgeMap:
     return CuDFEdgeMap(
@@ -182,12 +194,11 @@ def translate_graph_cugraphedgemap2cudfedgemap(
         src_label="src",
         dst_label="dst",
         weight_label="weights",
-        is_directed=isinstance(x.value, cugraph.DiGraph),
+        is_directed=x.value.is_directed(),
     )
 
 
 if has_networkx:
-    import cudf
     import networkx as nx
     from metagraph.plugins.networkx.types import NetworkXGraph
 
@@ -263,18 +274,21 @@ if has_networkx:
 
 
 if has_pandas:
-    import cudf
     from metagraph.plugins.pandas.types import PandasEdgeSet, PandasEdgeMap
 
     @translator
-    def translate_graph_pdedgeset2cudfedgeset(x: PandasEdgeSet, **props) -> CuDFEdgeSet:
+    def translate_edgeset_pdedgeset2cudfedgeset(
+        x: PandasEdgeSet, **props
+    ) -> CuDFEdgeSet:
         df = cudf.from_pandas(x.value)
         return CuDFEdgeSet(
             df, src_label=x.src_label, dst_label=x.dst_label, is_directed=x.is_directed
         )
 
     @translator
-    def translate_graph_pdedgemap2cudfedgemap(x: PandasEdgeMap, **props) -> CuDFEdgeMap:
+    def translate_edgemap_pdedgemap2cudfedgemap(
+        x: PandasEdgeMap, **props
+    ) -> CuDFEdgeMap:
         df = cudf.from_pandas(x.value)
         return CuDFEdgeMap(
             df,
@@ -285,7 +299,9 @@ if has_pandas:
         )
 
     @translator
-    def translate_graph_cudfedgeset2pdedgeset(x: CuDFEdgeSet, **props) -> PandasEdgeSet:
+    def translate_edgeset_cudfedgeset2pdedgeset(
+        x: CuDFEdgeSet, **props
+    ) -> PandasEdgeSet:
         pdf = x.value.to_pandas()
         return PandasEdgeSet(
             pdf,
@@ -295,7 +311,9 @@ if has_pandas:
         )
 
     @translator
-    def translate_graph_cudfedgemap2pdedgemap(x: CuDFEdgeMap, **props) -> PandasEdgeMap:
+    def translate_edgemap_cudfedgemap2pdedgemap(
+        x: CuDFEdgeMap, **props
+    ) -> PandasEdgeMap:
         pdf = x.value.to_pandas()
         return PandasEdgeMap(
             pdf,
@@ -304,3 +322,275 @@ if has_pandas:
             weight_label=x.weight_label,
             is_directed=x.is_directed,
         )
+
+    @translator
+    def translate_edgeset_pdedgeset2cugraphedgeset(
+        x: PandasEdgeSet, **props
+    ) -> CuGraphEdgeSet:
+        df = cudf.from_pandas(x.value)
+        g = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
+        g.from_cudf_edgelist(
+            df, source=x.src_label, destination=x.dst_label, renumber=False
+        )
+        return CuGraphEdgeSet(g)
+
+    @translator
+    def translate_edgemap_pdedgemap2cugraphedgemap(
+        x: PandasEdgeMap, **props
+    ) -> CuGraphEdgeMap:
+        df = cudf.from_pandas(x.value)
+        g = cugraph.DiGraph() if x.is_directed else cugraph.Graph()
+        g.from_cudf_edgelist(
+            df,
+            source=x.src_label,
+            destination=x.dst_label,
+            edge_attr=x.weight_label,
+            renumber=False,
+        )
+        return CuGraphEdgeMap(g)
+
+    @translator
+    def translate_edgeset_cugraphedgeset2pdedgeset(
+        x: CuGraphEdgeSet, **props
+    ) -> PandasEdgeSet:
+        is_directed = CuGraphEdgeSet.Type.compute_abstract_properties(
+            x, {"is_directed"}
+        )["is_directed"]
+        pdf = x.value.view_edge_list().to_pandas()
+        return PandasEdgeSet(
+            pdf, src_label="src", dst_label="dst", is_directed=is_directed,
+        )
+
+    @translator
+    def translate_edgemap_cugraphedgemap2pdedgemap(
+        x: CuGraphEdgeMap, **props
+    ) -> PandasEdgeMap:
+        is_directed = CuGraphEdgeSet.Type.compute_abstract_properties(
+            x, {"is_directed"}
+        )["is_directed"]
+        pdf = x.value.view_edge_list().to_pandas()
+        return PandasEdgeMap(
+            pdf,
+            src_label="src",
+            dst_label="dst",
+            weight_label="weights",
+            is_directed=is_directed,
+        )
+
+
+if has_scipy:
+    import cudf
+    import scipy.sparse as ss
+    from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap
+
+    @translator
+    def translate_edgeset_scipyedgeset2cugraphedgeset(
+        x: ScipyEdgeSet, **props
+    ) -> CuGraphEdgeSet:
+        is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
+            "is_directed"
+        ]
+        coo_matrix = x.value.tocoo()
+        get_node_from_pos = lambda index: x.node_list[index]
+        row_ids = map(get_node_from_pos, coo_matrix.row)
+        column_ids = map(get_node_from_pos, coo_matrix.col)
+        rc_pairs = zip(row_ids, column_ids)
+        if not is_directed:
+            rc_pairs = filter(lambda pair: pair[0] < pair[1], rc_pairs)
+        rc_pairs = list(rc_pairs)
+        cdf = cudf.DataFrame(rc_pairs, columns=["source", "target"])
+        graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
+        graph.from_cudf_edgelist(
+            cdf, source="source", destination="target",
+        )
+        return CuGraphEdgeSet(graph)
+
+    @translator
+    def translate_edgemap_scipyedgemap2cugraphedgemap(
+        x: ScipyEdgeMap, **props
+    ) -> CuGraphEdgeMap:
+        is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
+            "is_directed"
+        ]
+        coo_matrix = x.value.tocoo()
+        get_node_from_pos = lambda index: x.node_list[index]
+        row_ids = map(get_node_from_pos, coo_matrix.row)
+        column_ids = map(get_node_from_pos, coo_matrix.col)
+        rcw_triples = zip(row_ids, column_ids, coo_matrix.data)
+        if not is_directed:
+            rcw_triples = filter(lambda triple: triple[0] < triple[1], rcw_triples)
+        rcw_triples = list(rcw_triples)
+        cdf = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
+        graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
+        graph.from_cudf_edgelist(
+            cdf, source="source", destination="target", edge_attr="weight",
+        )
+        return CuGraphEdgeMap(graph)
+
+    @translator
+    def translate_edgeset_cugraphedgeset2scipyedgeset(
+        x: CuGraphEdgeSet, **props
+    ) -> ScipyEdgeSet:
+        is_directed = x.value.is_directed()
+        node_list = x.value.nodes().copy().sort_values().tolist()
+        num_nodes = len(node_list)
+        id2pos = dict(map(reversed, enumerate(node_list)))
+        get_id_pos = lambda node_id: id2pos[node_id]
+        gdf = x.value.view_edge_list()
+        source_positions = list(map(get_id_pos, gdf["src"].values.tolist()))
+        target_positions = list(map(get_id_pos, gdf["dst"].values.tolist()))
+        if not is_directed:
+            source_positions, target_positions = (
+                source_positions + target_positions,
+                target_positions + source_positions,
+            )
+        source_positions = np.array(source_positions)
+        target_positions = np.array(target_positions)
+        matrix = ss.coo_matrix(
+            (np.ones(len(source_positions)), (source_positions, target_positions)),
+            shape=(num_nodes, num_nodes),
+        ).tocsr()
+        return ScipyEdgeSet(matrix, node_list)
+
+    @translator
+    def translate_edgemap_cugraphedgemap2scipyedgemap(
+        x: CuGraphEdgeMap, **props
+    ) -> ScipyEdgeMap:
+        is_directed = x.value.is_directed()
+        node_list = x.value.nodes().copy().sort_values().tolist()
+        num_nodes = len(node_list)
+        id2pos = dict(map(reversed, enumerate(node_list)))
+        get_id_pos = lambda node_id: id2pos[node_id]
+        gdf = x.value.view_edge_list()
+        source_positions = list(map(get_id_pos, gdf["src"].values.tolist()))
+        target_positions = list(map(get_id_pos, gdf["dst"].values.tolist()))
+        weights = cupy.asnumpy(gdf["weights"].values)
+        if not is_directed:
+            source_positions, target_positions = (
+                source_positions + target_positions,
+                target_positions + source_positions,
+            )
+            weights = np.concatenate([weights, weights])
+        source_positions = np.array(source_positions)
+        target_positions = np.array(target_positions)
+        matrix = ss.coo_matrix(
+            (weights, (source_positions, target_positions)),
+            shape=(num_nodes, num_nodes),
+        ).tocsr()
+        return ScipyEdgeMap(matrix, node_list)
+
+    @translator
+    def translate_edgeset_scipyedgeset2cudfedgeset(
+        x: ScipyEdgeSet, **props
+    ) -> CuDFEdgeSet:
+        is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
+            "is_directed"
+        ]
+        coo_matrix = x.value.tocoo()
+        get_node_from_pos = lambda index: x.node_list[index]
+        row_ids = map(get_node_from_pos, coo_matrix.row)
+        column_ids = map(get_node_from_pos, coo_matrix.col)
+        rc_pairs = zip(row_ids, column_ids)
+        if not is_directed:
+            rc_pairs = filter(lambda pair: pair[0] < pair[1], rc_pairs)
+        rc_pairs = list(rc_pairs)
+        df = cudf.DataFrame(rc_pairs, columns=["source", "target"])
+        return CuDFEdgeSet(df, is_directed=is_directed)
+
+    @translator
+    def translate_edgemap_scipyedgemap2cudfedgemap(
+        x: ScipyEdgeMap, **props
+    ) -> CuDFEdgeMap:
+        is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
+            "is_directed"
+        ]
+        coo_matrix = x.value.tocoo()
+        get_node_from_pos = lambda index: x.node_list[index]
+        row_ids = map(get_node_from_pos, coo_matrix.row)
+        column_ids = map(get_node_from_pos, coo_matrix.col)
+        rcw_triples = zip(row_ids, column_ids, coo_matrix.data)
+        if not is_directed:
+            rcw_triples = filter(lambda triple: triple[0] < triple[1], rcw_triples)
+        rcw_triples = list(rcw_triples)
+        df = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
+        return CuDFEdgeMap(df, is_directed=is_directed)
+
+    @translator
+    def translate_edgeset_cudfedgeset2scipyedgeset(
+        x: CuDFEdgeSet, **props
+    ) -> ScipyEdgeSet:
+        is_directed = x.is_directed
+        node_list = np.unique(
+            cupy.asnumpy(x.value[[x.src_label, x.dst_label]].values).ravel("K")
+        )
+        node_list.sort()
+        num_nodes = len(node_list)
+        id2pos = dict(map(reversed, enumerate(node_list)))
+        get_id_pos = lambda node_id: id2pos[node_id]
+        source_positions = list(map(get_id_pos, x.value[x.src_label].values.tolist()))
+        target_positions = list(map(get_id_pos, x.value[x.dst_label].values.tolist()))
+        if not is_directed:
+            source_positions, target_positions = (
+                source_positions + target_positions,
+                target_positions + source_positions,
+            )
+        source_positions = np.array(source_positions)
+        target_positions = np.array(target_positions)
+        matrix = ss.coo_matrix(
+            (np.ones(len(source_positions)), (source_positions, target_positions)),
+            shape=(num_nodes, num_nodes),
+        ).tocsr()
+        return ScipyEdgeSet(matrix, node_list)
+
+    @translator
+    def translate_edgemap_cudfedgemap2scipyedgemap(
+        x: CuDFEdgeMap, **props
+    ) -> ScipyEdgeMap:
+        is_directed = x.is_directed
+        node_list = np.unique(
+            cupy.asnumpy(x.value[[x.src_label, x.dst_label]].values).ravel("K")
+        )
+        node_list.sort()
+        num_nodes = len(node_list)
+        id2pos = dict(map(reversed, enumerate(node_list)))
+        get_id_pos = lambda node_id: id2pos[node_id]
+        source_positions = list(map(get_id_pos, x.value[x.src_label].tolist()))
+        target_positions = list(map(get_id_pos, x.value[x.dst_label].tolist()))
+        weights = cupy.asnumpy(x.value[x.weight_label].values)
+        if not is_directed:
+            source_positions, target_positions = (
+                source_positions + target_positions,
+                target_positions + source_positions,
+            )
+            weights = np.concatenate([weights, weights])
+        matrix = ss.coo_matrix(
+            (weights, (source_positions, target_positions)),
+            shape=(num_nodes, num_nodes),
+        ).tocsr()
+        return ScipyEdgeMap(matrix, node_list)
+
+    @translator
+    def translate_graph_cugraph2scipygraph(x: CuGraph, **props) -> ScipyGraph:
+        # TODO create composite translators since this uses a lot of boilerplate
+        if isinstance(x.edges, CuGraphEdgeSet):
+            new_edges = translate_edgeset_cugraphedgeset2scipyedgeset.func(x.edges)
+        else:
+            new_edges = translate_edgemap_cugraphedgemap2scipyedgemap.func(x.edges)
+        if isinstance(x.nodes, CuDFNodeSet):
+            new_nodes = translate_nodes_cudfnodeset2numpynodeset.func(x.nodes)
+        else:
+            new_nodes = translate_nodes_cudfnodemap2numpynodemap.func(x.nodes)
+        return ScipyGraph(new_edges, new_nodes)
+
+    @translator
+    def translate_graph_scipygraph2cugraph(x: ScipyGraph, **props) -> CuGraph:
+        # TODO create composite translators since this uses a lot of boilerplate
+        if isinstance(x.edges, ScipyEdgeSet):
+            new_edges = translate_edgeset_scipyedgeset2cugraphedgeset.func(x.edges)
+        else:
+            new_edges = translate_edgemap_scipyedgemap2cugraphedgemap.func(x.edges)
+        if isinstance(x.nodes, NumpyNodeSet):
+            new_nodes = translate_nodes_numpynodeset2cudfnodeset.func(x.nodes)
+        else:
+            new_nodes = translate_nodes_numpynodemap2cudfnodemap.func(x.nodes)
+        return CuGraph(new_edges, new_nodes)

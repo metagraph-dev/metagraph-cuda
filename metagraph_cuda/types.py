@@ -270,20 +270,8 @@ if has_cudf:
 
                 # slow properties, only compute if asked
                 for prop in props - ret.keys():
-                    if prop == "weights":
-                        if ret["dtype"] == "str":
-                            weights = "any"
-                        elif ret["dtype"] == "bool":
-                            weights = "non-negative"
-                        else:
-                            min_val = obj.value[obj.weight_label].min()
-                            if min_val < 0:
-                                weights = "any"
-                            elif min_val == 0:
-                                weights = "non-negative"
-                            else:
-                                weights = "positive"
-                        ret[prop] = weights
+                    if prop == "has_negative_weights":
+                        ret[prop] = obj.value[obj.weight_label].lt(0).any()
 
                 return ret
 
@@ -306,11 +294,11 @@ if has_cudf:
                 g1 = obj1.value
                 g2 = obj2.value
                 assert len(g1) == len(g2), f"{len(g1)} != {len(g2)}"
-                assert len(obj1.index & obj2.index) == len(
-                    obj1.index
-                ), f"{len(obj1.index & obj2.index)} != {len(obj1.index)}"
+                assert (
+                    g1.index.isin(g2.index).all() and g2.index.isin(g1.index).all()
+                ), f"obj1 and obj2 are indexed differently."
                 # Ensure dataframes are indexed the same
-                if not (obj1.index == obj2.index).all():
+                if not (g1.index == g2.index).values.all():
                     g2 = (
                         g2.set_index(obj2.index)
                         .reindex(obj1.index)
@@ -322,6 +310,10 @@ if has_cudf:
                 if issubclass(v1.dtype.type, np.floating):
                     assert np.isclose(v1, v2, rtol=rel_tol, atol=abs_tol).all()
                 else:
+                    print(f"v1 {repr(v1)}")
+                    print(f"v2 {repr(v2)}")
+                    print(f"g1 {repr(g1)}")
+                    print(f"g2 {repr(g2)}")
                     assert (v1 == v2).all()
 
     class CuDFNodeSet(NodeSetWrapper, abstract=NodeSet):
@@ -487,10 +479,15 @@ if has_cugraph:
                     assert (
                         g1_nodes.isin(g2_nodes).all() and g2_nodes.isin(g1_nodes).all()
                     ), "g1 and g2 have different nodes"
+                    assert len(g1_edge_list) == len(
+                        g2_edge_list
+                    ), f"g1 and g2 have a different number of edges"
                     # TODO the below takes O(n) memory
-                    assert len(g1_edge_list) == len(g2_edge_list) and len(
-                        g1_edge_list.merge(g2_edge_list, how="outer")
-                    ) == len(g1_edge_list), "g1 and g2 have different edges"
+                    assert g1_edge_list.set_index(
+                        ["src", "dst", "weights"]
+                    ) == g2_edge_list.set_index(
+                        ["src", "dst", "weights"]
+                    ), "g1 and g2 have different edges"
                 else:
                     assert (
                         g1.number_of_nodes() == g2.number_of_nodes()
