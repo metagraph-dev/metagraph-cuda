@@ -4,4 +4,5 @@ from . import (
     pagerank,
     traversal,
     triangle_count,
+    utility,
 )

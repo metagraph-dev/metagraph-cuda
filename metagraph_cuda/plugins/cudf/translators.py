@@ -381,7 +381,7 @@ if has_pandas:
 if has_scipy:
     import cudf
     import scipy.sparse as ss
-    from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap
+    from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap, ScipyGraph
 
     @translator
     def translate_edgeset_scipyedgeset2cugraphedgeset(

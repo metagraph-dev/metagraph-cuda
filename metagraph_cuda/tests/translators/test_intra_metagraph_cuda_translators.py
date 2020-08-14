@@ -28,7 +28,7 @@ v       v /       v
     )
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_weighted_directed_edge_set_cugraph_to_cudf_edge_set():
@@ -62,7 +62,7 @@ v        v /        v
     )
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_unweighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
@@ -94,7 +94,7 @@ def test_unweighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     )
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
@@ -130,7 +130,7 @@ def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     )
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_cudf_edge_map_to_cugraph_edge_map():
@@ -173,7 +173,7 @@ def test_cudf_edge_map_to_cugraph_edge_map():
 
     y = dpr.translate(x, CuGraphEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraphEdgeMap) == 1
+    assert len(dpr.plan.translate(x, CuGraphEdgeMap)) == 1
 
 
 def test_cugraph_edge_map_to_cudf_edge_map():
@@ -216,4 +216,4 @@ def test_cugraph_edge_map_to_cudf_edge_map():
 
     y = dpr.translate(x, CuDFEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeMap) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeMap)) == 1

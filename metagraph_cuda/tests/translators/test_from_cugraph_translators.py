@@ -46,7 +46,7 @@ Source,Destination
     intermediate = ScipyEdgeSet(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, ScipyEdgeSet) == 1
+    assert len(dpr.plan.translate(x, ScipyEdgeSet)) == 1
 
 
 def test_cugraph_edge_map_to_scipy_edge_map():
@@ -83,7 +83,7 @@ def test_cugraph_edge_map_to_scipy_edge_map():
     intermediate = ScipyEdgeMap(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, ScipyEdgeMap) == 1
+    assert len(dpr.plan.translate(x, ScipyEdgeMap)) == 1
 
 
 def test_unweighted_directed_edge_list_cugraph_to_nextworkx():
@@ -120,7 +120,7 @@ v       v /       v
     intermediate = NetworkXGraph(networkx_graph_unwrapped)
     y = dpr.translate(x, NetworkXGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NetworkXGraph) == 1
+    assert len(dpr.plan.translate(x, NetworkXGraph)) == 1
 
 
 def test_weighted_directed_edge_list_cugraph_to_nextworkx():
@@ -164,7 +164,7 @@ v        v /        v
     intermediate = NetworkXGraph(networkx_graph_unwrapped)
     y = dpr.translate(x, NetworkXGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NetworkXGraph) == 1
+    assert len(dpr.plan.translate(x, NetworkXGraph)) == 1
 
 
 def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
@@ -200,7 +200,7 @@ def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
     intermediate = dpr.wrappers.Graph.NetworkXGraph(networkx_graph)
     y = dpr.translate(x, NetworkXGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NetworkXGraph) == 1
+    assert len(dpr.plan.translate(x, NetworkXGraph)) == 1
 
 
 def test_weighted_directed_adjacency_list_cugraph_to_networkx():
@@ -237,7 +237,7 @@ def test_weighted_directed_adjacency_list_cugraph_to_networkx():
     intermediate = dpr.wrappers.Graph.NetworkXGraph(networkx_graph)
     y = dpr.translate(x, dpr.wrappers.Graph.NetworkXGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NetworkXGraph) == 1
+    assert len(dpr.plan.translate(x, NetworkXGraph)) == 1
 
 
 def test_cugraph_edge_set_to_pandas_edge_set():
@@ -262,7 +262,7 @@ v       v /       v
     )
     y = dpr.translate(x, PandasEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, PandasEdgeSet) == 1
+    assert len(dpr.plan.translate(x, PandasEdgeSet)) == 1
 
 
 def test_cugraph_edge_map_to_pandas_edge_map():
@@ -300,4 +300,4 @@ v        v /        v
     )
     y = dpr.translate(x, PandasEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, PandasEdgeMap) == 1
+    assert len(dpr.plan.translate(x, PandasEdgeMap)) == 1

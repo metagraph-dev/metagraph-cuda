@@ -38,7 +38,7 @@ def test_scipy_edge_set_to_cugraph_edge_set():
 
     y = dpr.translate(x, CuGraphEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraphEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuGraphEdgeSet)) == 1
 
 
 def test_scipy_edge_map_to_cugraph_edge_map():
@@ -76,7 +76,7 @@ def test_scipy_edge_map_to_cugraph_edge_map():
 
     y = dpr.translate(x, CuGraphEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraphEdgeMap) == 1
+    assert len(dpr.plan.translate(x, CuGraphEdgeMap)) == 1
 
 
 def test_unweighted_directed_networkx_to_cugraph():
@@ -112,7 +112,7 @@ def test_unweighted_directed_networkx_to_cugraph():
     intermediate = dpr.wrappers.Graph.CuGraph(g, None)
     y = dpr.translate(x, CuGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraph) == 1
+    assert len(dpr.plan.translate(x, CuGraph)) == 1
 
 
 def test_weighted_directed_networkx_to_cugraph():
@@ -157,7 +157,7 @@ def test_weighted_directed_networkx_to_cugraph():
     intermediate = dpr.wrappers.Graph.CuGraph(g, None)
     y = dpr.translate(x, CuGraph)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraph) == 1
+    assert len(dpr.plan.translate(x, CuGraph)) == 1
 
 
 def test_pandas_edge_set_to_cugraph_edge_set():
@@ -187,7 +187,7 @@ def test_pandas_edge_set_to_cugraph_edge_set():
     intermediate = dpr.wrappers.EdgeSet.CuGraphEdgeSet(g)
     y = dpr.translate(x, CuGraphEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraphEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuGraphEdgeSet)) == 1
 
 
 def test_pandas_edge_map_to_cugraph_edge_map():
@@ -227,4 +227,4 @@ def test_pandas_edge_map_to_cugraph_edge_map():
 
     y = dpr.translate(x, CuGraphEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuGraphEdgeMap) == 1
+    assert len(dpr.plan.translate(x, CuGraphEdgeMap)) == 1

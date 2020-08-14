@@ -42,7 +42,7 @@ Source,Destination
     intermediate = ScipyEdgeSet(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, ScipyEdgeSet) == 1
+    assert len(dpr.plan.translate(x, ScipyEdgeSet)) == 1
 
 
 def test_cudf_edge_map_to_scipy_edge_map():
@@ -77,7 +77,7 @@ def test_cudf_edge_map_to_scipy_edge_map():
     intermediate = ScipyEdgeMap(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, ScipyEdgeMap) == 1
+    assert len(dpr.plan.translate(x, ScipyEdgeMap)) == 1
 
 
 def test_cudf_edge_set_to_pandas_edge_set():
@@ -117,7 +117,7 @@ Source,Destination
     intermediate = PandasEdgeSet(pdf, "source", "destination")
     y = dpr.translate(x, PandasEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, PandasEdgeSet) == 1
+    assert len(dpr.plan.translate(x, PandasEdgeSet)) == 1
 
 
 def test_cudf_node_map_to_python_node_map():
@@ -131,7 +131,7 @@ def test_cudf_node_map_to_python_node_map():
     intermediate = PythonNodeMap(python_dict)
     y = dpr.translate(x, PythonNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, PythonNodeMap) == 1
+    assert len(dpr.plan.translate(x, PythonNodeMap)) == 1
 
 
 def test_fully_dense_cudf_node_map_to_numpy_node_map():
@@ -144,7 +144,7 @@ def test_fully_dense_cudf_node_map_to_numpy_node_map():
     intermediate = NumpyNodeMap(np.array([00, 11, 22, 33], dtype=int))
     y = dpr.translate(x, NumpyNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NumpyNodeMap) == 1
+    assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
 
 
 def test_mostly_dense_cudf_node_map_to_numpy_node_map():
@@ -160,7 +160,7 @@ def test_mostly_dense_cudf_node_map_to_numpy_node_map():
     )
     y = dpr.translate(x, NumpyNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NumpyNodeMap) == 1
+    assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
 
 
 def test_sparse_cudf_node_map_to_numpy_node_map():
@@ -173,7 +173,7 @@ def test_sparse_cudf_node_map_to_numpy_node_map():
     intermediate = NumpyNodeMap(np.array([3, 4], dtype=int), node_ids={300: 0, 400: 1})
     y = dpr.translate(x, NumpyNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NumpyNodeMap) == 1
+    assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
 
 
 def test_cudf_node_set_to_python_node_set():
@@ -184,7 +184,7 @@ def test_cudf_node_set_to_python_node_set():
     intermediate = dpr.wrappers.NodeSet.PythonNodeSet({3, 4, 2, 1})
     y = dpr.translate(x, PythonNodeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, PythonNodeSet) == 1
+    assert len(dpr.plan.translate(x, PythonNodeSet)) == 1
 
 
 def test_dense_cudf_node_set_to_numpy_node_set():
@@ -197,7 +197,7 @@ def test_dense_cudf_node_set_to_numpy_node_set():
     )
     y = dpr.translate(x, NumpyNodeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NumpyNodeSet) == 1
+    assert len(dpr.plan.translate(x, NumpyNodeSet)) == 1
 
 
 def test_sparse_cudf_node_set_to_numpy_node_set():
@@ -208,4 +208,4 @@ def test_sparse_cudf_node_set_to_numpy_node_set():
     intermediate = dpr.wrappers.NodeSet.NumpyNodeSet(node_ids={200, 300, 400, 100})
     y = dpr.translate(x, NumpyNodeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, NumpyNodeSet) == 1
+    assert len(dpr.plan.translate(x, NumpyNodeSet)) == 1

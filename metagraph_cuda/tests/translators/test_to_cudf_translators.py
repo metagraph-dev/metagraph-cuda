@@ -22,7 +22,7 @@ def test_cudf_node_map_to_cudf_node_set():
 
     y = dpr.translate(x, CuDFNodeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFNodeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFNodeSet)) == 1
 
 
 def test_cudf_edge_map_to_cudf_edge_set():
@@ -60,7 +60,7 @@ def test_cudf_edge_map_to_cudf_edge_set():
 
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_scipy_edge_set_to_cudf_edge_set():
@@ -91,7 +91,7 @@ def test_scipy_edge_set_to_cudf_edge_set():
 
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_scipy_edge_map_to_cudf_edge_map():
@@ -126,7 +126,7 @@ def test_scipy_edge_map_to_cudf_edge_map():
     )
     y = dpr.translate(x, CuDFEdgeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeMap) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeMap)) == 1
 
 
 def test_pandas_edge_set_to_cudf_edge_set():
@@ -162,7 +162,7 @@ Source,Destination
     )
     y = dpr.translate(x, CuDFEdgeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFEdgeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
 
 
 def test_numpy_node_map_to_cudf_node_map():
@@ -176,7 +176,7 @@ def test_numpy_node_map_to_cudf_node_map():
     intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
     y = dpr.translate(x, CuDFNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFNodeMap) == 1
+    assert len(dpr.plan.translate(x, CuDFNodeMap)) == 1
 
 
 def test_python_node_map_to_cudf_node_map():
@@ -190,7 +190,7 @@ def test_python_node_map_to_cudf_node_map():
     intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
     y = dpr.translate(x, CuDFNodeMap)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFNodeMap) == 1
+    assert len(dpr.plan.translate(x, CuDFNodeMap)) == 1
 
 
 def test_python_node_set_to_cudf_node_set():
@@ -201,4 +201,4 @@ def test_python_node_set_to_cudf_node_set():
     intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
     y = dpr.translate(x, CuDFNodeSet)
     dpr.assert_equal(y, intermediate)
-    assert dpr.plan.num_translations(x, CuDFNodeSet) == 1
+    assert len(dpr.plan.translate(x, CuDFNodeSet)) == 1

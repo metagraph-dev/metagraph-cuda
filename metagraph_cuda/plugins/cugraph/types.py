@@ -112,8 +112,9 @@ if has_cudf:
 
     class CuDFNodeMap(NodeMapWrapper, abstract=NodeMap):
         """
-        CuDFNodeMap stores data in format where the node values are used as the index and the entries
-        in the column with the name specified by value_label correspond to the mapped values.
+        CuDFNodeMap stores data in a cudf.DataFrame where the index corresponds go the node ids
+        and the entries in the column with the name specified by value_label correspond to 
+        the mapped values.
         """
 
         def __init__(self, data, value_label):
@@ -126,6 +127,9 @@ if has_cudf:
 
         def __getitem__(self, node_id):
             return self.value.loc[node_id].loc[self.value]
+
+        def copy(self):
+            return CuDFNodeMap(self.value.copy(), self.value_label)
 
         @property
         def num_nodes(self):
@@ -182,6 +186,14 @@ if has_cudf:
             self._assert(dst_label in df, f"Indicated dst_label not found: {dst_label}")
             # Build the MultiIndex representing the edges
             self.index = df.set_index([src_label, dst_label]).index
+
+        def copy(self):
+            return CuDFEdgeSet(
+                self.value.copy(),
+                self.src_label,
+                self.dst_label,
+                bool(self.is_directed),
+            )
 
         @property
         def num_nodes(self):
@@ -310,10 +322,6 @@ if has_cudf:
                 if issubclass(v1.dtype.type, np.floating):
                     assert np.isclose(v1, v2, rtol=rel_tol, atol=abs_tol).all()
                 else:
-                    print(f"v1 {repr(v1)}")
-                    print(f"v2 {repr(v2)}")
-                    print(f"g1 {repr(g1)}")
-                    print(f"g2 {repr(g2)}")
                     assert (v1 == v2).all()
 
     class CuDFNodeSet(NodeSetWrapper, abstract=NodeSet):
@@ -321,6 +329,9 @@ if has_cudf:
             self._assert_instance(data, cudf.Series)
             unique_values = data.unique()
             self.value = cudf.Series(unique_values).set_index(unique_values)
+
+        def copy(self):
+            return CuDFNodeSet(self.value.copy())
 
         @property
         def num_nodes(self):
