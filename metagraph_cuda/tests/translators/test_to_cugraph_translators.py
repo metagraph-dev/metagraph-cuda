@@ -5,7 +5,7 @@ import networkx as nx
 import scipy.sparse as ss
 import cudf
 import cugraph
-from metagraph_cuda.types import CuGraph, CuGraphEdgeSet, CuGraphEdgeMap
+from metagraph_cuda.plugins.cugraph.types import CuGraph, CuGraphEdgeSet, CuGraphEdgeMap
 
 
 def test_scipy_edge_set_to_cugraph_edge_set():

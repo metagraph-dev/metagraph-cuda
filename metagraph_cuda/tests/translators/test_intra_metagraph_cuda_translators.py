@@ -3,7 +3,8 @@ import scipy.sparse as ss
 import numpy as np
 import cudf
 import cugraph
-from metagraph_cuda.types import CuGraphEdgeMap, CuDFEdgeSet, CuDFEdgeMap
+from metagraph_cuda.plugins.cugraph.types import CuGraphEdgeMap
+from metagraph_cuda.plugins.cudf.types import CuDFEdgeSet, CuDFEdgeMap
 
 
 def test_unweighted_directed_edge_set_cugraph_to_cudf_edge_set():

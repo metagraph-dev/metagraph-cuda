@@ -1,13 +1,15 @@
 import metagraph as mg
 import scipy.sparse as ss
 import pandas as pd
-import networkx as nx
 import numpy as np
-import scipy
 import cudf
-import cugraph
 import io
-from metagraph_cuda.types import CuDFNodeMap, CuDFNodeSet, CuDFEdgeSet, CuDFEdgeMap
+from metagraph_cuda.plugins.cudf.types import (
+    CuDFNodeMap,
+    CuDFNodeSet,
+    CuDFEdgeSet,
+    CuDFEdgeMap,
+)
 
 
 def test_cudf_node_map_to_cudf_node_set():

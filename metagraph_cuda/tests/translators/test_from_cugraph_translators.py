@@ -6,7 +6,6 @@ import scipy.sparse as ss
 import io
 import cudf
 import cugraph
-from metagraph_cuda.types import CuGraph, CuGraphEdgeSet, CuGraphEdgeMap
 from metagraph.plugins.networkx.types import NetworkXGraph
 from metagraph.plugins.pandas.types import PandasEdgeSet, PandasEdgeMap
 from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap
