@@ -236,7 +236,9 @@ if has_cugraph and has_scipy:
             new_edges = translate_edgeset_cugraphedgeset2scipyedgeset.func(x.edges)
         else:
             new_edges = translate_edgemap_cugraphedgemap2scipyedgemap.func(x.edges)
-        if isinstance(x.nodes, CuDFNodeSet):
+        if x.nodes is None:
+            new_nodes = None
+        elif isinstance(x.nodes, CuDFNodeSet):
             new_nodes = translate_nodes_cudfnodeset2numpynodeset.func(x.nodes)
         else:
             new_nodes = translate_nodes_cudfnodemap2numpynodemap.func(x.nodes)
@@ -249,6 +251,8 @@ if has_cugraph and has_scipy:
             new_edges = translate_edgeset_scipyedgeset2cugraphedgeset.func(x.edges)
         else:
             new_edges = translate_edgemap_scipyedgemap2cugraphedgemap.func(x.edges)
+        if x.nodes is None:
+            new_nodes = None
         if isinstance(x.nodes, NumpyNodeSet):
             new_nodes = translate_nodes_numpynodeset2cudfnodeset.func(x.nodes)
         else:
