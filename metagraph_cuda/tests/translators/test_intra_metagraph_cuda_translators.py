@@ -3,8 +3,99 @@ import scipy.sparse as ss
 import numpy as np
 import cudf
 import cugraph
-from metagraph_cuda.plugins.cugraph.types import CuGraphEdgeMap
-from metagraph_cuda.plugins.cudf.types import CuDFEdgeSet, CuDFEdgeMap
+from metagraph_cuda.plugins.cugraph.types import CuGraphEdgeSet, CuGraphEdgeMap
+from metagraph_cuda.plugins.cudf.types import CuDFNodeSet, CuDFEdgeSet, CuDFEdgeMap
+
+
+def test_cudf_node_map_to_cudf_node_set():
+    dpr = mg.resolver
+    keys = [3, 2, 1]
+    values = [33, 22, 11]
+    map_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
+    x = dpr.wrappers.NodeMap.CuDFNodeMap(map_data, "val")
+
+    nodes = cudf.Series([3, 1, 2])
+    intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(nodes)
+
+    y = dpr.translate(x, CuDFNodeSet)
+    dpr.assert_equal(y, intermediate)
+    assert len(dpr.plan.translate(x, CuDFNodeSet)) == 1
+
+
+def test_cudf_edge_map_to_cudf_edge_set():
+    """
+           +-+
+ ------>   |1|
+ |         +-+
+ | 
+ |          |
+ 9          6
+ |          |
+ |          v
+
++-+  <-8-  +-+        +-+
+|0|        |2|  <-5-  |3|
++-+  -7->  +-+        +-+
+"""
+    dpr = mg.resolver
+    sources = [0, 0, 1, 2, 3]
+    destinations = [1, 2, 2, 0, 2]
+    weights = [9, 7, 6, 8, 5]
+    cdf_weighted = cudf.DataFrame(
+        {"Source": sources, "Destination": destinations, "Weight": weights}
+    )
+    x = dpr.wrappers.EdgeMap.CuDFEdgeMap(
+        cdf_weighted, "Source", "Destination", "Weight"
+    )
+
+    sources = [0, 0, 1, 2, 3]
+    destinations = [1, 2, 2, 0, 2]
+    cdf_unweighted = cudf.DataFrame({"Source": sources, "Destination": destinations})
+    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
+        cdf_unweighted, "Source", "Destination"
+    )
+
+    y = dpr.translate(x, CuDFEdgeSet)
+    dpr.assert_equal(y, intermediate)
+    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
+
+
+def test_cugraph_edge_map_to_cugraph_edge_set():
+    """
+           +-+
+ ------>   |1|
+ |         +-+
+ | 
+ |          |
+ 9          6
+ |          |
+ |          v
+
++-+  <-8-  +-+        +-+
+|0|        |2|  <-5-  |3|
++-+  -7->  +-+        +-+
+"""
+    dpr = mg.resolver
+    sources = [0, 0, 1, 2, 3]
+    destinations = [1, 2, 2, 0, 2]
+    weights = [9, 7, 6, 8, 5]
+    gdf = cudf.DataFrame(
+        {"Source": sources, "Destination": destinations, "Weight": weights}
+    )
+
+    g_x = cugraph.DiGraph()
+    g_x.from_cudf_edgelist(
+        gdf, source="Source", destination="Destination", edge_attr="Weight"
+    )
+    x = dpr.wrappers.EdgeMap.CuGraphEdgeMap(g_x)
+
+    g_intermediate = cugraph.DiGraph()
+    g_intermediate.from_cudf_edgelist(gdf, source="Source", destination="Destination")
+    intermediate = dpr.wrappers.EdgeSet.CuGraphEdgeSet(g_intermediate)
+
+    y = dpr.translate(x, CuGraphEdgeSet)
+    dpr.assert_equal(y, intermediate)
+    assert len(dpr.plan.translate(x, CuGraphEdgeSet)) == 1
 
 
 def test_unweighted_directed_edge_set_cugraph_to_cudf_edge_set():

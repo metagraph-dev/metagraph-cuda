@@ -30,6 +30,20 @@ if has_cugraph:
     )
 
     @translator
+    def cugraph_edgemap_to_edgeset(x: CuGraphEdgeMap, **props) -> CuGraphEdgeSet:
+        is_directed = CuGraphEdgeSet.Type.compute_abstract_properties(
+            x, {"is_directed"}
+        )["is_directed"]
+        g = cugraph.DiGraph() if is_directed else cugraph.Graph()
+        if x.value.edgelist is not None:
+            gdf = x.value.view_edge_list()
+            g.from_cudf_edgelist(gdf, source="src", destination="dst")
+        else:
+            offset_col, index_col, _ = x.value.view_adj_list()
+            g.from_cudf_adjlist(offset_col, index_col, value_col)
+        return CuGraphEdgeSet(g)
+
+    @translator
     def translate_edgeset_cudfedgeset2cugraphedgeset(
         x: CuDFEdgeSet, **props
     ) -> CuGraphEdgeSet:

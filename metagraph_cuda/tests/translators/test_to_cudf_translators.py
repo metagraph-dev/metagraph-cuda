@@ -12,59 +12,6 @@ from metagraph_cuda.plugins.cudf.types import (
 )
 
 
-def test_cudf_node_map_to_cudf_node_set():
-    dpr = mg.resolver
-    keys = [3, 2, 1]
-    values = [33, 22, 11]
-    map_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(map_data, "val")
-
-    nodes = cudf.Series([3, 1, 2])
-    intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(nodes)
-
-    y = dpr.translate(x, CuDFNodeSet)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, CuDFNodeSet)) == 1
-
-
-def test_cudf_edge_map_to_cudf_edge_set():
-    """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
-
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
-    dpr = mg.resolver
-    sources = [0, 0, 1, 2, 3]
-    destinations = [1, 2, 2, 0, 2]
-    weights = [9, 7, 6, 8, 5]
-    cdf_weighted = cudf.DataFrame(
-        {"Source": sources, "Destination": destinations, "Weight": weights}
-    )
-    x = dpr.wrappers.EdgeMap.CuDFEdgeMap(
-        cdf_weighted, "Source", "Destination", "Weight"
-    )
-
-    sources = [0, 0, 1, 2, 3]
-    destinations = [1, 2, 2, 0, 2]
-    cdf_unweighted = cudf.DataFrame({"Source": sources, "Destination": destinations})
-    intermediate = dpr.wrappers.EdgeSet.CuDFEdgeSet(
-        cdf_unweighted, "Source", "Destination"
-    )
-
-    y = dpr.translate(x, CuDFEdgeSet)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, CuDFEdgeSet)) == 1
-
-
 def test_scipy_edge_set_to_cudf_edge_set():
     """
           +-+
