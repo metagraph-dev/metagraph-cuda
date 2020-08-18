@@ -24,11 +24,11 @@ if has_cudf:
         positions_of_sorted_values = (
             x.value[x.value_label].argsort(ascending=ascending).values
         )
-        data = x.value.iloc[positions_of_sorted_values].index.to_series(
-            cudf.core.index.RangeIndex(0, len(x.value))
-        )
         if limit is not None:
-            data = data.iloc[0:limit]
+            positions_of_sorted_values = positions_of_sorted_values[0:limit]
+        data = x.value.iloc[positions_of_sorted_values].index.to_series(
+            cudf.core.index.RangeIndex(0, len(positions_of_sorted_values))
+        )
         return CuDFVector(data)
 
     @concrete_algorithm("util.nodemap.select")

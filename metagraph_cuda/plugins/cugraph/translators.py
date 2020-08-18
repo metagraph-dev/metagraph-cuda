@@ -154,6 +154,7 @@ if has_cugraph and has_scipy:
         is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
+        # TODO can we special case CSR? example at https://docs.rapids.ai/api/cugraph/stable/api.html#cugraph.structure.graph.Graph.from_cudf_adjlist
         coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
@@ -176,6 +177,7 @@ if has_cugraph and has_scipy:
         is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
+        # TODO can we special case CSR? example at https://docs.rapids.ai/api/cugraph/stable/api.html#cugraph.structure.graph.Graph.from_cudf_adjlist
         coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
@@ -287,21 +289,21 @@ if has_cugraph and has_networkx:
         )
         is_directed = aprops["is_directed"]
         out = nx.DiGraph() if is_directed else nx.Graph()
-        column_name_to_series = {
-            column_name: series
+        column_name_to_edge_list_values = {
+            column_name: series.tolist()
             for column_name, series in x.edges.value.view_edge_list().iteritems()
         }
         if aprops["edge_type"] == "set":
             ebunch = zip(
-                column_name_to_series["src"].tolist(),
-                column_name_to_series["dst"].tolist(),
+                column_name_to_edge_list_values["src"],
+                column_name_to_edge_list_values["dst"],
             )
             out.add_edges_from(ebunch)
         else:
             ebunch = zip(
-                column_name_to_series["src"].tolist(),
-                column_name_to_series["dst"].tolist(),
-                column_name_to_series["weights"].tolist(),
+                column_name_to_edge_list_values["src"],
+                column_name_to_edge_list_values["dst"],
+                column_name_to_edge_list_values["weights"],
             )
             out.add_weighted_edges_from(ebunch)
         # TODO take care of node weights

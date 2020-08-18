@@ -22,9 +22,8 @@ if has_cudf:
 
     @translator
     def cudf_edgemap_to_edgeset(x: CuDFEdgeMap, **props) -> CuDFEdgeSet:
-        return CuDFEdgeSet(
-            x.value.copy(), x.src_label, x.dst_label, is_directed=x.is_directed
-        )
+        data = x.value[[x.src_label, x.dst_label]].copy()
+        return CuDFEdgeSet(data, x.src_label, x.dst_label, is_directed=x.is_directed)
 
     @translator
     def translate_nodes_cudfnodemap2pythonnodemap(
@@ -43,7 +42,7 @@ if has_cudf:
     ) -> CuDFNodeMap:
         keys, values = zip(*x.value.items())
         # TODO consider special casing the situation when all the keys form a compact range
-        data = cudf.DataFrame({"key": keys, "value": values}).set_index("key")
+        data = cudf.DataFrame({"value": values}, index=keys)
         return CuDFNodeMap(data, "value")
 
     @translator
@@ -62,7 +61,7 @@ if has_cudf:
     def translate_nodes_numpyvector2cudfvector(x: NumpyVector, **props) -> CuDFVector:
         if x.mask is not None:
             data = x.value[x.mask]
-            series = cudf.Series(data).set_index(np.flatnonzero(x.mask))
+            series = cudf.Series(data, index=np.flatnonzero(x.mask))
         else:
             data = x.value
             series = cudf.Series(data)
@@ -93,10 +92,10 @@ if has_cudf:
             keys = np.flatnonzero(x.value)
             np_values = x.value[mask]
             # TODO make CuDFNodeMap store a Series instead of DataFrame to avoid making 2 copies here
-            df = cudf.Series(np_values).set_index(keys).to_frame("value")
+            df = cudf.Series(np_values, index=keys).to_frame("value")
         elif x.pos2id is not None:
             # TODO make CuDFNodeMap store a Series instead of DataFrame to avoid making 2 copies here
-            df = cudf.DataFrame({"value": x.value, "keys": x.pos2id}).set_index("keys")
+            df = cudf.DataFrame({"value": x.value}, index=x.pos2id)
         else:
             df = cudf.DataFrame({"value": x.value})
         return CuDFNodeMap(df, "value")
@@ -127,9 +126,8 @@ if has_cudf:
             mask[position_selector] = True
             node_ids = None
         else:
-            df_index_sorted = (
-                x.value.sort_index()
-            )  # O(n log n), but n is small since not dense
+            # O(n log n) sort, but n is small since not dense
+            df_index_sorted = x.value.sort_index()
             data = cupy.asnumpy(df_index_sorted[x.value_label].values)
             node_ids = dict(map(reversed, enumerate(df_index_sorted.index)))
             mask = None
@@ -171,7 +169,7 @@ if has_cudf and has_pandas:
     def translate_edgeset_pdedgeset2cudfedgeset(
         x: PandasEdgeSet, **props
     ) -> CuDFEdgeSet:
-        df = cudf.from_pandas(x.value)
+        df = cudf.from_pandas(x.value[[x.src_label, x.dst_label]])
         return CuDFEdgeSet(
             df, src_label=x.src_label, dst_label=x.dst_label, is_directed=x.is_directed
         )
@@ -180,7 +178,7 @@ if has_cudf and has_pandas:
     def translate_edgemap_pdedgemap2cudfedgemap(
         x: PandasEdgeMap, **props
     ) -> CuDFEdgeMap:
-        df = cudf.from_pandas(x.value)
+        df = cudf.from_pandas(x.value[[x.src_label, x.dst_label, x.weight_label]])
         return CuDFEdgeMap(
             df,
             src_label=x.src_label,
@@ -193,7 +191,7 @@ if has_cudf and has_pandas:
     def translate_edgeset_cudfedgeset2pdedgeset(
         x: CuDFEdgeSet, **props
     ) -> PandasEdgeSet:
-        pdf = x.value.to_pandas()
+        pdf = x.value[[x.src_label, x.dst_label]].to_pandas()
         return PandasEdgeSet(
             pdf,
             src_label=x.src_label,
@@ -205,7 +203,7 @@ if has_cudf and has_pandas:
     def translate_edgemap_cudfedgemap2pdedgemap(
         x: CuDFEdgeMap, **props
     ) -> PandasEdgeMap:
-        pdf = x.value.to_pandas()
+        pdf = x.value[[x.src_label, x.dst_label, x.weight_label]].to_pandas()
         return PandasEdgeMap(
             pdf,
             src_label=x.src_label,
@@ -226,7 +224,9 @@ if has_cudf and has_scipy:
         is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
-        coo_matrix = x.value.tocoo()
+        coo_matrix = (
+            x.value.tocoo()
+        )  # TODO consider handling CSR and COO cases separately
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
@@ -244,7 +244,9 @@ if has_cudf and has_scipy:
         is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
-        coo_matrix = x.value.tocoo()
+        coo_matrix = (
+            x.value.tocoo()
+        )  # TODO consider handling CSR and COO cases separately
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
