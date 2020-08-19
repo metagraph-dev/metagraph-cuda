@@ -7,7 +7,7 @@ if has_cugraph:
     import cugraph
     import cudf
     import cupy
-    from .types import CuGraph, CuGraphBipartiteGraph, CuGraphEdgeSet, CuGraphEdgeMap
+    from .types import CuGraph, CuGraphEdgeSet, CuGraphEdgeMap
     from ..cudf.types import CuDFVector, CuDFNodeSet, CuDFNodeMap
 
     @concrete_algorithm("util.edge_map.from_edgeset")
