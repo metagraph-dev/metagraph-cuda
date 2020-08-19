@@ -96,7 +96,7 @@ if has_cugraph:
         # TODO do something more optimal when there's an adjlist and no edgelist
         df = graph.edges.value.view_edge_list()
         keep_mask = df["weights"].applymap(func).values
-        # TODO unclear why reset_index is necessary here https://github.com/rapidsai/cugraph/issues/1080
+        # TODO reset_index is workaround for https://github.com/rapidsai/cugraph/issues/1080
         keep_df = df.iloc[keep_mask].reset_index(drop=True)
         new_g.from_cudf_edgelist(
             keep_df, source="src", destination="dst", edge_attr="weights"
@@ -126,8 +126,16 @@ if has_cugraph:
     ) -> CuGraph:
         return CuGraph(edges, nodes)
 
-    @concrete_algorithm("bipartite.graph_projection")
-    def graph_projection(
-        bgraph: CuGraphBipartiteGraph, nodes_retained: int = 0
-    ) -> CuGraph:
-        return
+    # TODO finish this implementation once cugraph 0.15 is released on conda-forge
+    # @concrete_algorithm("bipartite.graph_projection")
+    # def graph_projection(
+    #         bgraph: CuGraphBipartiteGraph, nodes_retained: int
+    # ) -> CuGraph:
+    #     g = cugraph.DiGraph() if edgeset.value.is_directed() else cugraph.Graph()
+    #     two_hop_neighbors_df = bgraph.value.get_two_hop_neighbors()
+    #     nodes_to_keep = graph.sets()[nodes_retained]
+    #     keep_mask = two_hop_neighbors_df.first.isin(nodes_to_keep)
+    #     # TODO reset_index is workaround for https://github.com/rapidsai/cugraph/issues/1080
+    #     edge_list_df = two_hop_neighbors_df[keep_mask].reset_index()
+    #     g.from_cudf_edgelist(edge_list_df, source="first", destination="second")
+    #     return CuGraph(g, nodes=CuDFNodeSet(nodes_to_keep))

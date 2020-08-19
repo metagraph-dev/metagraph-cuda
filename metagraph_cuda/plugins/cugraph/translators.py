@@ -14,6 +14,7 @@ if has_cugraph:
         CuGraphEdgeSet,
         CuGraphEdgeMap,
         CuGraph,
+        # CuGraphBipartiteGraph,
     )
     from ..cudf.types import (
         CuDFVector,
@@ -278,7 +279,7 @@ if has_cugraph and has_scipy:
 
 if has_cugraph and has_networkx:
     import networkx as nx
-    from metagraph.plugins.networkx.types import NetworkXGraph
+    from metagraph.plugins.networkx.types import NetworkXGraph, NetworkXBipartiteGraph
 
     @translator
     def translate_graph_cugraphgraph2networkxgraph(
@@ -351,3 +352,29 @@ if has_cugraph and has_networkx:
             nodes = None
             # TODO implement this via a CuDFNodeMap
         return CuGraph(edges, nodes)
+
+    # TODO finish this implementation and add tests once cugraph 0.15 is released on conda-forge
+    # @translator
+    # def translate_bipartitegraph_cugraphgraph2networkxgraph(
+    #     x: CuGraphBipartiteGraph, **props
+    # ) -> NetworkXBipartiteGraph:
+    #     nx_graph = nx.DiGraph() if x.value.is_directed() else nx.Graph()
+    #     nodes = tuple(map(set, x.value.sets()))
+    #     edge_list_df = x.view_edge_list()
+    #     ebunch = df.values.tolist()
+    #     kwargs = {}
+    #     if "weights" in edge_list_df.columns:
+    #         kwargs['edge_weight_label'] = "weight"
+    #         nx_graph.add_weighted_edges_from(ebunch, weight="weight")
+    #     else:
+    #         nx_graph.add_edges_from(ebunch)
+    #     # @TODO handle node weights
+    #     return NetworkXBipartiteGraph(nx_graph, nodes, **kwargs)
+
+    # TODO finish this implementation and add tests once cugraph 0.15 is released on conda-forge
+    # @translator
+    # def translate_bipartitegraph_networkx2cugraph(x: NetworkXBipartiteGraph, **props) -> CuGraphBipartiteGraph:
+    #     g = cugraph.DiGraph() if x.value.is_directed() else cugraph.Graph()
+    #     pass # TODO finish this implementation
+    #     # TODO handle node weights
+    #     return CuGraphBipartiteGraph(g)
