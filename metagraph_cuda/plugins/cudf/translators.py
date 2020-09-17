@@ -49,7 +49,7 @@ if has_cudf:
     def translate_nodes_cudfnodeset2pythonnodeset(
         x: CuDFNodeSet, **props
     ) -> PythonNodeSet:
-        return PythonNodeSet(set(x.value.index))
+        return PythonNodeSet(set(x.value.index.to_pandas()))
 
     @translator
     def translate_nodes_pythonnodeset2cudfnodeset(
@@ -129,7 +129,7 @@ if has_cudf:
             # O(n log n) sort, but n is small since not dense
             df_index_sorted = x.value.sort_index()
             data = cupy.asnumpy(df_index_sorted[x.value_label].values)
-            node_ids = dict(map(reversed, enumerate(df_index_sorted.index)))
+            node_ids = dict(map(reversed, enumerate(df_index_sorted.index.values_host)))
             mask = None
         return NumpyNodeMap(data, mask=mask, node_ids=node_ids)
 
@@ -269,8 +269,8 @@ if has_cudf and has_scipy:
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
-        source_positions = list(map(get_id_pos, x.value[x.src_label].values.tolist()))
-        target_positions = list(map(get_id_pos, x.value[x.dst_label].values.tolist()))
+        source_positions = list(map(get_id_pos, x.value[x.src_label].values_host))
+        target_positions = list(map(get_id_pos, x.value[x.dst_label].values_host))
         if not is_directed:
             source_positions, target_positions = (
                 source_positions + target_positions,
@@ -296,8 +296,8 @@ if has_cudf and has_scipy:
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
-        source_positions = list(map(get_id_pos, x.value[x.src_label].tolist()))
-        target_positions = list(map(get_id_pos, x.value[x.dst_label].tolist()))
+        source_positions = list(map(get_id_pos, x.value[x.src_label].values_host))
+        target_positions = list(map(get_id_pos, x.value[x.dst_label].values_host))
         weights = cupy.asnumpy(x.value[x.weight_label].values)
         if not is_directed:
             source_positions, target_positions = (

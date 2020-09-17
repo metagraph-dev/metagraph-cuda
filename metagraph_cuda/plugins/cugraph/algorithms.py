@@ -1,13 +1,13 @@
 import metagraph as mg
 from metagraph import concrete_algorithm, NodeID
 from .. import has_cugraph
-from typing import Callable, Any
+from typing import Callable, Tuple, Any
 
 if has_cugraph:
     import cugraph
     import cudf
     import cupy
-    from .types import CuGraph, CuGraphEdgeSet, CuGraphEdgeMap
+    from .types import CuGraph, CuGraphBipartiteGraph, CuGraphEdgeSet, CuGraphEdgeMap
     from ..cudf.types import CuDFVector, CuDFNodeSet, CuDFNodeMap
 
     @concrete_algorithm("util.edge_map.from_edgeset")
@@ -126,16 +126,33 @@ if has_cugraph:
     ) -> CuGraph:
         return CuGraph(edges, nodes)
 
-    # TODO finish this implementation once cugraph 0.15 is released on conda-forge
-    # @concrete_algorithm("bipartite.graph_projection")
-    # def graph_projection(
-    #         bgraph: CuGraphBipartiteGraph, nodes_retained: int
-    # ) -> CuGraph:
-    #     g = cugraph.DiGraph() if edgeset.value.is_directed() else cugraph.Graph()
-    #     two_hop_neighbors_df = bgraph.value.get_two_hop_neighbors()
-    #     nodes_to_keep = graph.sets()[nodes_retained]
-    #     keep_mask = two_hop_neighbors_df.first.isin(nodes_to_keep)
-    #     # TODO reset_index is workaround for https://github.com/rapidsai/cugraph/issues/1080
-    #     edge_list_df = two_hop_neighbors_df[keep_mask].reset_index()
-    #     g.from_cudf_edgelist(edge_list_df, source="first", destination="second")
-    #     return CuGraph(g, nodes=CuDFNodeSet(nodes_to_keep))
+    @concrete_algorithm("bipartite.graph_projection")
+    def graph_projection(bgraph: CuGraphBipartiteGraph, nodes_retained: int) -> CuGraph:
+        g = cugraph.DiGraph() if bgraph.value.is_directed() else cugraph.Graph()
+        two_hop_neighbors_df = bgraph.value.get_two_hop_neighbors()
+        nodes_to_keep = bgraph.value.sets()[nodes_retained]
+        keep_mask = two_hop_neighbors_df.first.isin(nodes_to_keep)
+        # TODO reset_index is workaround for https://github.com/rapidsai/cugraph/issues/1080
+        edge_list_df = two_hop_neighbors_df[keep_mask].reset_index()
+        g.from_cudf_edgelist(edge_list_df, source="first", destination="second")
+        return CuGraph(g, nodes=CuDFNodeSet(nodes_to_keep))
+
+    @concrete_algorithm("clustering.louvain_community")
+    def cugraph_louvain_community(graph: CuGraph) -> Tuple[CuDFNodeMap, float]:
+        label_df, modularity_score = cugraph.louvain(graph.edges.value)
+        label_df = label_df.set_index("vertex")
+        if graph.nodes is not None:
+            orphan_mask: cupy.ndarray = ~graph.nodes.index.isin(label_df.index)
+            orpha_nodes = nodes.data.index[orphan_mask]
+            orphan_count = orphan_mask.astype(int).sum().item()
+            max_label = label_df.vertex.max()
+            orphan_labels = cupy.arange(max_label + 1, max_label + 1 + orphan_count)
+            orphan_df = cudf.Series(orphan_labels, index=orpha_nodes).to_frame(
+                "partition"
+            )
+            label_df = cudf.concat([label_df, orphan_df])
+            # TODO this should worsen the modularity score as well.
+        return (
+            CuDFNodeMap(label_df, "partition"),
+            modularity_score,
+        )
