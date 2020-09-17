@@ -14,7 +14,7 @@ if has_cugraph:
         CuGraphEdgeSet,
         CuGraphEdgeMap,
         CuGraph,
-        # CuGraphBipartiteGraph,
+        CuGraphBipartiteGraph,
     )
     from ..cudf.types import (
         CuDFVector,
@@ -199,13 +199,13 @@ if has_cugraph and has_scipy:
         x: CuGraphEdgeSet, **props
     ) -> ScipyEdgeSet:
         is_directed = x.value.is_directed()
-        node_list = x.value.nodes().copy().sort_values().tolist()
+        node_list = x.value.nodes().copy().sort_values().values_host
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
         gdf = x.value.view_edge_list()
-        source_positions = list(map(get_id_pos, gdf["src"].values.tolist()))
-        target_positions = list(map(get_id_pos, gdf["dst"].values.tolist()))
+        source_positions = list(map(get_id_pos, gdf["src"].values_host))
+        target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         if not is_directed:
             source_positions, target_positions = (
                 source_positions + target_positions,
@@ -224,13 +224,13 @@ if has_cugraph and has_scipy:
         x: CuGraphEdgeMap, **props
     ) -> ScipyEdgeMap:
         is_directed = x.value.is_directed()
-        node_list = x.value.nodes().copy().sort_values().tolist()
+        node_list = x.value.nodes().copy().sort_values().values_host
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
         gdf = x.value.view_edge_list()
-        source_positions = list(map(get_id_pos, gdf["src"].values.tolist()))
-        target_positions = list(map(get_id_pos, gdf["dst"].values.tolist()))
+        source_positions = list(map(get_id_pos, gdf["src"].values_host))
+        target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         weights = cupy.asnumpy(gdf["weights"].values)
         if not is_directed:
             source_positions, target_positions = (
@@ -291,7 +291,7 @@ if has_cugraph and has_networkx:
         is_directed = aprops["is_directed"]
         out = nx.DiGraph() if is_directed else nx.Graph()
         column_name_to_edge_list_values = {
-            column_name: series.tolist()
+            column_name: series.values_host.tolist()
             for column_name, series in x.edges.value.view_edge_list().iteritems()
         }
         if aprops["edge_type"] == "set":
@@ -323,18 +323,16 @@ if has_cugraph and has_networkx:
 
         g = cugraph.DiGraph() if is_directed else cugraph.Graph()
         if is_weighted:
-            edgelist = x.value.edges(data=True)
-            source_nodes, target_nodes, node_data_dicts = zip(*edgelist)
-            cdf_data = {"source": source_nodes, "destination": target_nodes}
-            cdf_data[x.edge_weight_label] = [
-                data_dict[x.edge_weight_label] for data_dict in node_data_dicts
-            ]
+            edgelist = x.value.edges(data=x.edge_weight_label)
+            source_nodes, target_nodes, weights = zip(*edgelist)
+            cdf_data = {
+                "source": source_nodes,
+                "destination": target_nodes,
+                "weight": weights,
+            }
             cdf = cudf.DataFrame(cdf_data)
             g.from_cudf_edgelist(
-                cdf,
-                source="source",
-                destination="destination",
-                edge_attr=x.edge_weight_label,
+                cdf, source="source", destination="destination", edge_attr="weight",
             )
             edges = CuGraphEdgeMap(g)
         else:
@@ -353,28 +351,57 @@ if has_cugraph and has_networkx:
             # TODO implement this via a CuDFNodeMap
         return CuGraph(edges, nodes)
 
-    # TODO finish this implementation and add tests once cugraph 0.15 is released on conda-forge
-    # @translator
-    # def translate_bipartitegraph_cugraphgraph2networkxgraph(
-    #     x: CuGraphBipartiteGraph, **props
-    # ) -> NetworkXBipartiteGraph:
-    #     nx_graph = nx.DiGraph() if x.value.is_directed() else nx.Graph()
-    #     nodes = tuple(map(set, x.value.sets()))
-    #     edge_list_df = x.view_edge_list()
-    #     ebunch = df.values.tolist()
-    #     kwargs = {}
-    #     if "weights" in edge_list_df.columns:
-    #         kwargs['edge_weight_label'] = "weight"
-    #         nx_graph.add_weighted_edges_from(ebunch, weight="weight")
-    #     else:
-    #         nx_graph.add_edges_from(ebunch)
-    #     # @TODO handle node weights
-    #     return NetworkXBipartiteGraph(nx_graph, nodes, **kwargs)
+    @translator
+    def translate_bipartitegraph_cugraphgraph2networkxgraph(
+        x: CuGraphBipartiteGraph, **props
+    ) -> NetworkXBipartiteGraph:
+        nx_graph = nx.DiGraph() if x.value.is_directed() else nx.Graph()
+        nodes = tuple(map(set, x.value.sets()))
+        edge_list_df = x.view_edge_list()
+        ebunch = df.values.tolist()
+        kwargs = {}
+        if "weights" in edge_list_df.columns:
+            kwargs["edge_weight_label"] = "weight"
+            nx_graph.add_weighted_edges_from(ebunch, weight="weight")
+        else:
+            nx_graph.add_edges_from(ebunch)
+        # @TODO handle node weights
+        return NetworkXBipartiteGraph(nx_graph, nodes, **kwargs)
 
-    # TODO finish this implementation and add tests once cugraph 0.15 is released on conda-forge
-    # @translator
-    # def translate_bipartitegraph_networkx2cugraph(x: NetworkXBipartiteGraph, **props) -> CuGraphBipartiteGraph:
-    #     g = cugraph.DiGraph() if x.value.is_directed() else cugraph.Graph()
-    #     pass # TODO finish this implementation
-    #     # TODO handle node weights
-    #     return CuGraphBipartiteGraph(g)
+    @translator
+    def translate_bipartitegraph_networkx2cugraph(
+        x: NetworkXBipartiteGraph, **props
+    ) -> CuGraphBipartiteGraph:
+        # TODO abstract out common functionality among this and the non-bipartite graph translators
+        aprops = NetworkXBipartiteGraph.Type.compute_abstract_properties(
+            x, {"edge_type", "is_directed"}
+        )
+        is_weighted = aprops["edge_type"] == "map"
+        is_directed = aprops["is_directed"]
+        g = cugraph.DiGraph() if is_directed else cugraph.Graph()
+        top_nodes = list(x.nodes[0])
+        bottom_nodes = list(x.nodes[1])
+        g.add_nodes_from(top_nodes, bipartite="top")
+        g.add_nodes_from(bottom_nodes, bipartite="bottom")
+        if is_weighted:
+            edgelist = x.value.edges(data=x.edge_weight_label)
+            source_nodes, target_nodes, weights = zip(*edgelist)
+            cdf_data = {
+                "source": source_nodes,
+                "destination": target_nodes,
+                "weight": weights,
+            }
+            cdf = cudf.DataFrame(cdf_data)
+            g.from_cudf_edgelist(
+                cdf, source="source", destination="destination", edge_attr="weight",
+            )
+            edges = CuGraphEdgeMap(g)
+        else:
+            edgelist = x.value.edges()
+            source_nodes, target_nodes = zip(*edgelist)
+            cdf_data = {"source": source_nodes, "destination": target_nodes}
+            cdf = cudf.DataFrame(cdf_data)
+            g.from_cudf_edgelist(cdf, source="source", destination="destination")
+            edges = CuGraphEdgeSet(g)
+        # TODO handle node weights
+        return CuGraphBipartiteGraph(g)

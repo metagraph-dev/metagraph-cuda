@@ -111,7 +111,7 @@ if has_cudf:
     class CuDFNodeMap(NodeMapWrapper, abstract=NodeMap):
         """
         CuDFNodeMap stores data in a cudf.DataFrame where the index corresponds go the node ids
-        and the entries in the column with the name specified by value_label correspond to 
+        and the entries in the column with the name specified by value_label correspond to
         the mapped values.
         """
 
@@ -168,9 +168,11 @@ if has_cudf:
                 ), f"abstract property mismatch: {aprops1} != {aprops2}"
                 d1, d2 = obj1.value, obj2.value
                 if aprops1.get("dtype") == "float":
-                    assert all(cupy.isclose(d1[obj1.value_label], d2[obj2.value_label]))
+                    assert (
+                        cupy.isclose(d1[obj1.value_label], d2[obj2.value_label])
+                    ).all()
                 else:
-                    assert all(d1[obj1.value_label] == d2[obj2.value_label])
+                    assert (d1[obj1.value_label] == d2[obj2.value_label]).all()
 
     class CuDFEdgeSet(EdgeSetWrapper, abstract=EdgeSet):
         def __init__(
@@ -337,7 +339,7 @@ if has_cudf:
             return len(self.value)
 
         def __iter__(self):
-            return iter(self.value)
+            return iter(self.value.values_host)
 
         def __contains__(self, item):
             return item in self.value.index
@@ -361,4 +363,4 @@ if has_cudf:
                 ), f"abstract property mismatch: {aprops1} != {aprops2}"
                 v1, v2 = obj1.value, obj2.value
                 assert len(v1) == len(v2), f"size mismatch: {len(v1)} != {len(v2)}"
-                assert all(v1 == v2), f"node sets do not match"
+                assert (v1 == v2).all(), f"node sets do not match"

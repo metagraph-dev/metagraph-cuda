@@ -29,5 +29,8 @@ dependencies:
   - numba
   - cupy
   - cudf
-  - cugraph=0.14.*
+  - cugraph=0.15.*
   - cudatoolkit=10.1
+  - dask-cudf
+  - dask-cuda
+
