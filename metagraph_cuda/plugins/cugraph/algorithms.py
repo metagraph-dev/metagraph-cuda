@@ -142,7 +142,7 @@ if has_cugraph:
         label_df, modularity_score = cugraph.louvain(graph.edges.value)
         label_df = label_df.set_index("vertex")
         if graph.nodes is not None:
-            orphan_mask: cupy.ndarray = ~graph.nodes.index.isin(label_df.index)
+            orphan_mask: cupy.ndarray = ~graph.nodes.value.index.isin(label_df.index)
             orpha_nodes = nodes.data.index[orphan_mask]
             orphan_count = orphan_mask.astype(int).sum().item()
             max_label = label_df.vertex.max()
