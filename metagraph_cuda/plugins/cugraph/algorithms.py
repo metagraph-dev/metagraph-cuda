@@ -143,7 +143,7 @@ if has_cugraph:
         label_df = label_df.set_index("vertex")
         if graph.nodes is not None:
             orphan_mask: cupy.ndarray = ~graph.nodes.value.index.isin(label_df.index)
-            orphan_nodes = graph.nodes.data.index[orphan_mask]
+            orphan_nodes = graph.nodes.value.data.index[orphan_mask]
             orphan_count = orphan_mask.astype(int).sum().item()
             max_label = label_df.vertex.max()
             orphan_labels = cupy.arange(max_label + 1, max_label + 1 + orphan_count)
