@@ -1,0 +1,36 @@
+	# This TravisCI script is very minimal and not very flexible.
+# It only tests one environment on Linux with Python 3.7.
+# We will eventually want to expand our test environments.
+sudo: false
+language: python
+python:
+    - "3.7"
+    - "3.8"
+install:
+    # https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/use-conda-with-travis-ci.html
+    - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+    - bash miniconda.sh -b -p $HOME/miniconda
+    - source "$HOME/miniconda/etc/profile.d/conda.sh"
+    - hash -r
+    - conda config --set always_yes yes --set changeps1 no
+    - conda update -q conda
+    - conda install -q conda-build
+    - conda info -a
+    - conda env create -f continuous_integration/environment-${TRAVIS_PYTHON_VERSION}.yml
+    - conda activate mg
+    - pip install -e .
+
+script:
+    - black --check --diff metagraph_cuda
+    - pytest
+    - conda build -c metagraph -c defaults -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda
+    - conda install -q anaconda-client
+    - OUTPUT=$(conda build --output -c defaults -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda)
+    - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then anaconda -t $ANACONDA_TOKEN upload -u metagraph -l dev --no-progress --force --no-register $OUTPUT; fi'
+
+notifications:
+    email: false
+
+env:
+  global:
+    secure: "Qzo3x7dnfEZqQpBawuhZ/X/tWg7EpT8NEi5FoLnGU+UfCGOAJePuHiFZY0i3+sxeMqPZQOMOyAjwTcLgVyaTjB2BojJ1YCbuY+iEQkBwws6k/qMQquS0Go1nSkiVNc5frOArjYHBzm37aZrFQS+GtTarhuZPmURfdvqUdtGYWwIYQlYNwkChQpVIm/1QSY770JARI9PVW/d+3DDozbEXarvbmk+NKjV7zPzgEWldFl5dj+yLMs5zTrRvmZw28GTzzdhSWXv2a1WPoKCxY2BvkZjxUkfMlTFL4kUKptE+qDyGNcvSqYVMIf+VaLy5aLfMPMVUKVJa68rvE+2uiu/RDDYaMEJLfpQdjXi3e1WYz7OfbQSvv28I8t1EJnJTydnx0yRRxm+psOt9gyVDMKl+dSDPADwq7uld13NVCVd/RMl2EQ45ZXSnrQoRUFBcta25mBU0KTkhsJJGxwFDgXXbtQA8WHj/MgjJIO6Iky/hs+nVl92BhEr79xasSXaan/nyqSJ2C2VffoKaJeDLCu/8Y+fljpwAXNpOF7X5b5c4XxRpLBC44VWZLzvC2xyMNd+9ynGfpITw5Uzd8aZrUUrOM10bUYB1QQakFrJKa8WkVCm9VDpAC8hV//exFJaPcG56gJubxxXrIPNA3xvKoPRUgJ1cwg53bcRiCufYBHglvnY="
