@@ -20,7 +20,7 @@ install:
 
 script:
     - black --check --diff metagraph_cuda
-    - conda build --build-only -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda
+    - conda build --no-test -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda
     - conda install -q anaconda-client
     - OUTPUT=$(conda build --output -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda)
     - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then anaconda -t $ANACONDA_TOKEN upload -u metagraph -l dev --no-progress --force --no-register $OUTPUT; fi'
