@@ -5,7 +5,6 @@ sudo: false
 language: python
 python:
     - "3.7"
-    - "3.8"
 install:
     # https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/use-conda-with-travis-ci.html
     - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
@@ -16,16 +15,12 @@ install:
     - conda update -q conda
     - conda install -q conda-build
     - conda info -a
-    - conda env create -f continuous_integration/environment-${TRAVIS_PYTHON_VERSION}.yml
-    - conda activate mg
-    - pip install -e .
 
 script:
     - black --check --diff metagraph_cuda
-    - pytest
-    - conda build -c metagraph -c defaults -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda
+    - conda build --build-only -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda
     - conda install -q anaconda-client
-    - OUTPUT=$(conda build --output -c defaults -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda)
+    - OUTPUT=$(conda build --output -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${TRAVIS_PYTHON_VERSION} continuous_integration/conda)
     - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then anaconda -t $ANACONDA_TOKEN upload -u metagraph -l dev --no-progress --force --no-register $OUTPUT; fi'
 
 notifications:
