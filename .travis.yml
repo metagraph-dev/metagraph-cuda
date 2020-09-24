@@ -14,7 +14,7 @@ install:
     - conda config --set always_yes yes --set changeps1 no
     - conda update -q conda
     - conda install -q conda-build black
-    - echo `which black`
+    - echo $PATH
     - conda info -a
 
 script:
