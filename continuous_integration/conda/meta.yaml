@@ -1,3 +1,4 @@
+# conda build -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge continuous_integration/conda/
 package:
   name: metagraph-cuda
   version: {{ GIT_DESCRIBE_TAG }}
@@ -21,9 +22,12 @@ requirements:
     - python
     - setuptools
     - metagraph
-    - cudf
+    - cudf >=0.15
     - cupy
-    - cugraph
+    - cugraph >=0.15
+    - dask-cudf  # missing cugraph dependency
+    - dask-cuda  # missing cugraph dependency
+    - numba
 
 test:
   requires:
@@ -32,6 +36,7 @@ test:
     - cugraph
     - pandas
     - networkx
+    - cudatoolkit <11.0
 #    - pytest-cov
 #    - coverage
 #    - black
