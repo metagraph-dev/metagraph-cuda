@@ -53,8 +53,8 @@ if has_cudf:
     # def cudf_nodemap_reduce(x: CuDFNodeMap, func: Callable[[Any, Any], Any]) -> Any:
     #     pass
 
-    @concrete_algorithm("util.edge_map.from_edgeset")
-    def cudf_edge_map_from_edgeset(
+    @concrete_algorithm("util.edgemap.from_edgeset")
+    def cudf_edgemap_from_edgeset(
         edgeset: CuDFEdgeSet, default_value: Any,
     ) -> CuDFEdgeMap:
         df = edgeset.value.copy()

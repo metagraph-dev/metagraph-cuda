@@ -10,8 +10,8 @@ if has_cugraph:
     from .types import CuGraph, CuGraphBipartiteGraph, CuGraphEdgeSet, CuGraphEdgeMap
     from ..cudf.types import CuDFVector, CuDFNodeSet, CuDFNodeMap
 
-    @concrete_algorithm("util.edge_map.from_edgeset")
-    def cugraph_edge_map_from_edgeset(
+    @concrete_algorithm("util.edgemap.from_edgeset")
+    def cugraph_edgemap_from_edgeset(
         edgeset: CuGraphEdgeSet, default_value: Any,
     ) -> CuGraphEdgeMap:
         g = cugraph.DiGraph() if edgeset.value.is_directed() else cugraph.Graph()
@@ -115,7 +115,7 @@ if has_cugraph:
 
     @concrete_algorithm("util.graph.assign_uniform_weight")
     def cugraph_graph_assign_uniform_weight(graph: CuGraph, weight: Any) -> CuGraph:
-        new_edges = cugraph_edge_map_from_edgeset.func(graph.edges, weight)
+        new_edges = cugraph_edgemap_from_edgeset.func(graph.edges, weight)
         new_nodes = None if graph.nodes is None else graph.nodes.copy()
         return CuGraph(new_edges, new_nodes)
 
