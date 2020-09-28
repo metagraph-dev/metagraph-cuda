@@ -55,8 +55,7 @@ if has_cudf:
 
     @concrete_algorithm("util.edgemap.from_edgeset")
     def cudf_edgemap_from_edgeset(
-        edgeset: CuDFEdgeSet,
-        default_value: Any,
+        edgeset: CuDFEdgeSet, default_value: Any,
     ) -> CuDFEdgeMap:
         df = edgeset.value.copy()
         df["weight"] = cupy.full(len(df), default_value)
