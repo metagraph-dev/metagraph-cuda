@@ -43,6 +43,7 @@ test:
 
   commands:
     - pytest --pyargs metagraph_cuda.tests
+    - pytest --pyargs metagraph.tests
 
 about:
   home: https://github.com/metagraph-dev/metagraph-cuda
