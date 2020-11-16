@@ -11,8 +11,8 @@ def test_cudf_node_map_to_cudf_node_set():
     dpr = mg.resolver
     keys = [3, 2, 1]
     values = [33, 22, 11]
-    map_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(map_data, "val")
+    map_data = cudf.Series(values).set_index(keys)
+    x = dpr.wrappers.NodeMap.CuDFNodeMap(map_data)
 
     nodes = cudf.Series([3, 1, 2])
     intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(nodes)

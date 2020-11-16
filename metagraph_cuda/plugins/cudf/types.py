@@ -110,16 +110,13 @@ if has_cudf:
 
     class CuDFNodeMap(NodeMapWrapper, abstract=NodeMap):
         """
-        CuDFNodeMap stores data in a cudf.DataFrame where the index corresponds go the node ids
-        and the entries in the column with the name specified by value_label correspond to
-        the mapped values.
+        CuDFNodeMap stores data in a cudf.Series where the index corresponds go the node ids
+        and the entries correspond to the mapped values.
         """
 
-        def __init__(self, data, value_label):
-            # TODO store this as a series instead
-            self._assert_instance(data, cudf.DataFrame)
+        def __init__(self, data):
+            self._assert_instance(data, cudf.Series)
             self.value = data
-            self.value_label = value_label
 
         def __contains__(self, node_id):
             return node_id in self.value.index
@@ -127,8 +124,11 @@ if has_cudf:
         def __getitem__(self, node_id):
             return self.value.loc[node_id].loc[self.value]
 
+        def __len__(self):
+            return len(self.value)
+
         def copy(self):
-            return CuDFNodeMap(self.value.copy(), self.value_label)
+            return CuDFNodeMap(self.value.copy())
 
         @property
         def num_nodes(self):
@@ -144,9 +144,7 @@ if has_cudf:
                 # fast properties
                 for prop in props - ret.keys():
                     if prop == "dtype":
-                        ret[prop] = dtypes.dtypes_simplified[
-                            obj.value[obj.value_label].dtype
-                        ]
+                        ret[prop] = dtypes.dtypes_simplified[obj.value.dtype]
 
                 return ret
 
@@ -166,13 +164,10 @@ if has_cudf:
                 assert (
                     aprops1 == aprops2
                 ), f"abstract property mismatch: {aprops1} != {aprops2}"
-                d1, d2 = obj1.value, obj2.value
                 if aprops1.get("dtype") == "float":
-                    assert (
-                        cupy.isclose(d1[obj1.value_label], d2[obj2.value_label])
-                    ).all()
+                    assert (cupy.isclose(obj1.value, obj2.value)).all()
                 else:
-                    assert (d1[obj1.value_label] == d2[obj2.value_label]).all()
+                    assert (obj1.value == obj2.value).all()
 
     class CuDFEdgeSet(EdgeSetWrapper, abstract=EdgeSet):
         def __init__(
@@ -336,6 +331,9 @@ if has_cudf:
 
         @property
         def num_nodes(self):
+            return len(self.value)
+
+        def __len__(self):
             return len(self.value)
 
         def __iter__(self):

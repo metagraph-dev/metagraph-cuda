@@ -2,8 +2,12 @@ from metagraph import translator, dtypes
 from metagraph.plugins import has_pandas, has_scipy
 import numpy as np
 from .. import has_cudf
-from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap, NumpyVector
-from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap, dtype_casting
+from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap, NumpyVectorType
+from metagraph.plugins.python.types import (
+    PythonNodeSetType,
+    PythonNodeMapType,
+    dtype_casting,
+)
 
 if has_cudf:
     import cudf
@@ -28,110 +32,61 @@ if has_cudf:
     @translator
     def translate_nodes_cudfnodemap2pythonnodemap(
         x: CuDFNodeMap, **props
-    ) -> PythonNodeMap:
-        cast = dtype_casting[dtypes.dtypes_simplified[x.value[x.value_label].dtype]]
-        data = {
-            i.item(): cast(x.value.loc[i.item()].loc[x.value_label])
-            for i in x.value.index.values
-        }
-        return PythonNodeMap(data)
+    ) -> PythonNodeMapType:
+        cast = dtype_casting[dtypes.dtypes_simplified[x.value.dtype]]
+        data = {i.item(): cast(x.value.loc[i.item()]) for i in x.value.index.values}
+        return data
 
     @translator
     def translate_nodes_pythonnodemap2cudfnodemap(
-        x: PythonNodeMap, **props
+        x: PythonNodeMapType, **props
     ) -> CuDFNodeMap:
-        keys, values = zip(*x.value.items())
+        keys, values = zip(*x.items())
         # TODO consider special casing the situation when all the keys form a compact range
-        data = cudf.DataFrame({"value": values}, index=keys)
-        return CuDFNodeMap(data, "value")
+        data = cudf.Series(values, index=keys)
+        return CuDFNodeMap(data)
 
     @translator
     def translate_nodes_cudfnodeset2pythonnodeset(
         x: CuDFNodeSet, **props
-    ) -> PythonNodeSet:
-        return PythonNodeSet(set(x.value.index.to_pandas()))
+    ) -> PythonNodeSetType:
+        return set(x.value.index.to_pandas())
 
     @translator
     def translate_nodes_pythonnodeset2cudfnodeset(
-        x: PythonNodeSet, **props
+        x: PythonNodeSetType, **props
     ) -> CuDFNodeSet:
-        return CuDFNodeSet(cudf.Series(x.value))
+        return CuDFNodeSet(cudf.Series(x))
 
     @translator
-    def translate_nodes_numpyvector2cudfvector(x: NumpyVector, **props) -> CuDFVector:
-        if x.mask is not None:
-            data = x.value[x.mask]
-            series = cudf.Series(data, index=np.flatnonzero(x.mask))
-        else:
-            data = x.value
-            series = cudf.Series(data)
+    def translate_nodes_numpyvector2cudfvector(
+        x: NumpyVectorType, **props
+    ) -> CuDFVector:
+        data = x.value
+        series = cudf.Series(data)
         return CuDFVector(series)
 
     @translator
-    def translate_vector_cudfvector2numpyvector(x: CuDFVector, **props) -> NumpyVector:
-        is_dense = CuDFVector.Type.compute_abstract_properties(x, {"is_dense"})[
-            "is_dense"
-        ]
-        if is_dense:
-            np_vector = cupy.asnumpy(x.value.sort_index().values)
-            mask = None
-        else:
-            series = x.value.sort_index()
-            positions = series.index.to_array()
-            np_vector = np.empty(len(x), dtype=series.dtype)
-            np_vector[positions] = cupy.asnumpy(series.values)
-            mask = np.zeros(len(x), dtype=bool)
-            mask[positions] = True
-        return NumpyVector(np_vector, mask=mask)
+    def translate_vector_cudfvector2numpyvector(
+        x: CuDFVector, **props
+    ) -> NumpyVectorType:
+        np_vector = cupy.asnumpy(x.values)
+        return np_vector
 
     @translator
     def translate_nodes_numpynodemap2cudfnodemap(
         x: NumpyNodeMap, **props
     ) -> CuDFNodeMap:
-        if x.mask is not None:
-            keys = np.flatnonzero(x.value)
-            np_values = x.value[mask]
-            # TODO make CuDFNodeMap store a Series instead of DataFrame to avoid making 2 copies here
-            df = cudf.Series(np_values, index=keys).to_frame("value")
-        elif x.pos2id is not None:
-            # TODO make CuDFNodeMap store a Series instead of DataFrame to avoid making 2 copies here
-            df = cudf.DataFrame({"value": x.value}, index=x.pos2id)
-        else:
-            df = cudf.DataFrame({"value": x.value})
-        return CuDFNodeMap(df, "value")
+        series = cudf.Series(x.value).set_index(x.nodes)
+        return CuDFNodeMap(series)
 
     @translator
     def translate_nodes_cudfnodemap2numpynodemap(
         x: CuDFNodeMap, **props
     ) -> NumpyNodeMap:
-        if isinstance(x.value.index, cudf.core.index.RangeIndex):
-            x_index_min = x.value.index.start
-            x_index_max = x.value.index.stop - 1
-        else:
-            x_index_min = x.value.index.min()
-            x_index_max = x.value.index.max()
-        x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
-        if x_density == 1.0:
-            data = np.empty(len(x.value), dtype=x.value[x.value_label].dtype)
-            data[cupy.asnumpy(x.value.index.values)] = cupy.asnumpy(
-                x.value[x.value_label].values
-            )
-            mask = None
-            node_ids = None
-        elif x_density > 0.5:  # TODO consider moving this threshold out to a global
-            data = np.empty(x_index_max + 1, dtype=x.value[x.value_label].dtype)
-            position_selector = cupy.asnumpy(x.value.index.values)
-            data[position_selector] = cupy.asnumpy(x.value[x.value_label].values)
-            mask = np.zeros(x_index_max + 1, dtype=bool)
-            mask[position_selector] = True
-            node_ids = None
-        else:
-            # O(n log n) sort, but n is small since not dense
-            df_index_sorted = x.value.sort_index()
-            data = cupy.asnumpy(df_index_sorted[x.value_label].values)
-            node_ids = dict(map(reversed, enumerate(df_index_sorted.index.values_host)))
-            mask = None
-        return NumpyNodeMap(data, mask=mask, node_ids=node_ids)
+        return NumpyNodeMap(
+            cupy.asnumpy(x.value.values), nodes=cupy.asnumpy(x.value.index.to_array())
+        )
 
     @translator
     def translate_nodes_numpynodeset2cudfnodeset(
