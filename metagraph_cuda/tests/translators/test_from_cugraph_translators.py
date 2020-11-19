@@ -325,14 +325,21 @@ def test_cugraph_graph_to_scipy_graph():
         cdf, source="Source", destination="Destination",
     )
     cudf_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series(range(5)))
-    x = dpr.wrappers.Graph.CuGraph(g)
+    x = dpr.wrappers.Graph.CuGraph(g, cudf.Series(range(5)), False)
 
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 1, 1, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 1, 0],])
+        np.array(
+            [
+                [0, 1, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [1, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0],
+            ]
+        )
     )
-    ss_edge_set = dpr.wrappers.EdgeSet.ScipyEdgeSet(scipy_sparse_matrix)
-    np_nodes = dpr.wrappers.NodeSet.NumpyNodeSet(np.arange(5))
-    intermediate = dpr.wrappers.Graph.ScipyGraph(ss_edge_set, np_nodes)
+    np_nodes = np.arange(5)
+    intermediate = dpr.wrappers.Graph.ScipyGraph(scipy_sparse_matrix, np_nodes)
 
     y = dpr.translate(x, ScipyGraph)
     dpr.assert_equal(y, intermediate)

@@ -2,7 +2,7 @@ import numpy as np
 from metagraph.wrappers import (
     EdgeSetWrapper,
     EdgeMapWrapper,
-    CompositeGraphWrapper,
+    GraphWrapper,
     BipartiteGraphWrapper,
 )
 from metagraph import dtypes
@@ -13,7 +13,7 @@ from metagraph.types import (
     EdgeMap,
 )
 from .. import has_cugraph
-from typing import List, Set, Dict, Any
+from typing import List, Set, Dict, Any, Optional
 
 if has_cugraph:
     import cugraph
@@ -189,23 +189,147 @@ if has_cugraph:
                                     g1_series == g2_series
                                 ), "g1 and g2 have different edges"
 
-    class CuGraph(CompositeGraphWrapper, abstract=Graph):
-        def __init__(self, edges, nodes=None):
-            if isinstance(edges, cugraph.Graph):
-                if edges.edgelist:
-                    if edges.edgelist.weights:
-                        edges = CuGraphEdgeMap(edges)
+    class CuGraph(GraphWrapper, abstract=Graph):
+        def __init__(
+            self,
+            graph: cugraph.Graph,
+            nodes: Optional[cudf.Series] = None,
+            has_node_weights: bool = False,
+        ):
+            """
+            The index of nodes specify the nodes. If has_node_weights is true, then the values of nodes specify the node weights.
+            nodes can contain orphan nodes not maintained in graph.
+            """
+            self._assert_instance(graph, cugraph.Graph)
+            self._assert(
+                not has_node_weights or nodes is not None,
+                f"Node weights not specified.",
+            )
+            if nodes is None:
+                nodes = graph.nodes().copy()
+            self._assert(
+                graph.nodes().isin(nodes).all(),
+                f"{graph} contains nodes not specified in {nodes}.",
+            )
+            self.value = graph
+            self.nodes = nodes
+            self.has_node_weights = has_node_weights
+
+        class TypeMixin:
+            @classmethod
+            def _compute_abstract_properties(
+                cls, obj, props: Set[str], known_props: Dict[str, Any]
+            ) -> Dict[str, Any]:
+                ret = known_props.copy()
+
+                if {"edge_type", "edge_dtype", "edge_has_negative_weights"} & (
+                    props - ret.keys()
+                ):
+                    if obj.value.edgelist:
+                        edgelist = obj.value.view_edge_list()
+                        weights = (
+                            edgelist.weights if "weights" in edgelist.columns else None
+                        )
                     else:
-                        edges = CuGraphEdgeSet(edges)
-                elif edges.adjlist:
-                    if edges.view_adj_list()[-1] is not None:
-                        edges = CuGraphEdgeMap(edges)
-                    else:
-                        edges = CuGraphEdgeSet(edges)
-            self._assert_instance(edges, (CuGraphEdgeSet, CuGraphEdgeMap))
-            if nodes is not None:
-                self._assert_instance(nodes, (CuDFNodeSet, CuDFNodeMap))
-            super().__init__(edges, nodes)
+                        weights = obj.value.view_adj_list()[2]
+
+                # fast properties
+                for prop in {
+                    "is_directed",
+                    "node_type",
+                    "node_dtype",
+                    "edge_type",
+                    "edge_dtype",
+                } - ret.keys():
+                    if prop == "is_directed":
+                        ret[prop] = obj.value.is_directed()
+                    elif prop == "node_type":
+                        ret[prop] = "map" if obj.has_node_weights else "set"
+                    elif prop == "node_dtype":
+                        ret[prop] = (
+                            dtypes.dtypes_simplified[obj.nodes.dtype]
+                            if obj.has_node_weights
+                            else None
+                        )
+                    elif prop == "edge_type":
+                        ret[prop] = "map" if weights is not None else "set"
+                    elif prop == "edge_dtype":
+                        ret[prop] = (
+                            dtypes.dtypes_simplified[weights.dtype]
+                            if weights is not None
+                            else None
+                        )
+
+                # slow properties, only compute if asked
+                slow_props = props - ret.keys()
+                for prop in slow_props:
+                    if prop == "edge_has_negative_weights":
+                        ret[prop] = None if weights is None else weights.lt(0).any()
+
+                return ret
+
+            @classmethod
+            def assert_equal(
+                cls,
+                obj1,
+                obj2,
+                aprops1,
+                aprops2,
+                cprops1,
+                cprops2,
+                *,
+                rel_tol=1e-9,
+                abs_tol=0.0,
+            ):
+                assert aprops1 == aprops2, f"property mismatch: {aprops1} != {aprops2}"
+                g1 = obj1.value
+                g2 = obj2.value
+                canonicalize_nodes = lambda series: series.set_index(series)
+                # Compare
+                assert len(obj1.nodes) == len(
+                    obj2.nodes
+                ), f"{len(obj1.nodes)} == {len(obj2.nodes)}"
+                assert all(
+                    obj1.nodes.index.isin(obj2.nodes.index)
+                ), f"{obj1} contains nodes missing from {obj2}"
+                assert all(
+                    obj2.nodes.index.isin(obj1.nodes.index)
+                ), f"{obj2} contains nodes missing from {obj1}"
+                assert (
+                    g1.number_of_edges() == g2.number_of_edges()
+                ), f"{g1.number_of_edges()} != {g2.number_of_edges()}"
+                if g1.edgelist:
+                    g1_edge_list = g1.view_edge_list()
+                    g2_edge_list = g2.view_edge_list()
+                    assert len(g1_edge_list) == len(
+                        g2_edge_list
+                    ), f"g1 and g2 have a different number of edges"
+                    assert len(g1_edge_list.columns) == len(
+                        g2_edge_list.columns
+                    ), "one of g1 or g2 is weighted while the other is not"
+                    columns = list(g1_edge_list.columns)
+                    print(f"columns {repr(columns)}")
+                    print(f"g1_edge_list {repr(g1_edge_list)}")
+                    print(f"g2_edge_list {repr(g2_edge_list)}")
+                    # TODO the below takes an additional possibly unneeded O(n) memory
+                    assert g1_edge_list.set_index(columns) == g2_edge_list.set_index(
+                        columns
+                    ), "g1 and g2 have different edges"
+                else:
+                    for i, g1_series in enumerate(g1.view_adj_list()):
+                        g2_series = g1.view_adj_list()[i]
+                        assert (g1_series is None) == (
+                            g2_series is None
+                        ), "one of g1 or g2 is weighted while the other is not"
+                        if g1_series is not None:
+                            if np.issubdtype(g1_series.dtype.type, np.float):
+                                assert cupy.isclose(g1_series == g2_series)
+                            else:
+                                assert all(
+                                    g1_series == g2_series
+                                ), "g1 and g2 have different edges"
+                if aprops1["node_type"] == "map":
+                    assert obj1.nodes.equal(obj2.nodes)
 
     class CuGraphBipartiteGraph(BipartiteGraphWrapper, abstract=BipartiteGraph):
         def __init__(self, graph):
