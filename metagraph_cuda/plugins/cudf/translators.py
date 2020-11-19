@@ -174,7 +174,6 @@ if has_cudf and has_scipy:
             rc_pairs = filter(lambda pair: pair[0] <= pair[1], rc_pairs)
         rc_pairs = list(rc_pairs)
         df = cudf.DataFrame(rc_pairs, columns=["source", "target"])
-        print(f"props {repr(props)}")
         return CuDFEdgeSet(df, is_directed=is_directed)
 
     @translator
