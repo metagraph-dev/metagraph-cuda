@@ -234,13 +234,8 @@ if has_cugraph and has_scipy:
             self_loop_mask = gdf.src == gdf.dst
             self_loop_df = gdf[self_loop_mask]
             no_self_loop_df = gdf[~self_loop_mask]
-            gdf = cudf.concat(
-                [
-                    no_self_loop_df,
-                    no_self_loop_df.rename(columns={"src": "dst", "dst": "src"}),
-                    self_loop_df,
-                ]
-            )
+            repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
+            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
         source_positions = list(map(get_id_pos, gdf["src"].values_host))
         target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         weights = cupy.asnumpy(gdf["weights"].values)
@@ -272,13 +267,8 @@ if has_cugraph and has_scipy:
             self_loop_mask = gdf.src == gdf.dst
             self_loop_df = gdf[self_loop_mask]
             no_self_loop_df = gdf[~self_loop_mask]
-            gdf = cudf.concat(
-                [
-                    no_self_loop_df,
-                    no_self_loop_df.rename(columns={"src": "dst", "dst": "src"}),
-                    self_loop_df,
-                ]
-            )
+            repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
+            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
         source_positions = list(map(get_id_pos, gdf["src"].values_host))
         target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         weights = (
@@ -444,22 +434,23 @@ if has_cugraph and has_networkx:
             )
         )
         is_weighted = aprops["edge_type"] == "map"
-        nx_graph = nx.DiGraph() if aprops["is_directed"] else nx.Graph()
+        is_directed = aprops["is_directed"]
+        nx_graph = nx.DiGraph() if is_directed else nx.Graph()
         edge_list_df = x.value.view_edge_list()
         columns = edge_list_df.columns.values
         src_index = np.where(columns == "src")[0].item()
         dst_index = np.where(columns == "dst")[0].item()
         if is_weighted:
             weight_index = np.where(columns == "weights")[0].item()
-            ebunch = cupy.asnumpy(edge_list_df.values)[
-                :, [src_index, dst_index, weight_index]
-            ].tolist()
+            ebunch = cupy.asnumpy(edge_list_df.values)
+            ebunch = ebunch[:, [src_index, dst_index, weight_index]]
+            ebunch = ebunch.tolist()
             caster = dtype_casting[aprops["edge_dtype"]]
             ebunch = [(src, dst, caster(weight)) for src, dst, weight in ebunch]
         else:
-            ebunch = cupy.asnumpy(edge_list_df.values)[
-                :, [src_index, dst_index]
-            ].tolist()
+            ebunch = cupy.asnumpy(edge_list_df.values)
+            ebunch = ebunch[:, [src_index, dst_index]]
+            ebunch = ebunch.tolist()
         if "weights" in edge_list_df.columns:
             nx_graph.add_weighted_edges_from(ebunch, weight="weight")
         else:
