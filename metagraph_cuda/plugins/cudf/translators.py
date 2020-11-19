@@ -62,15 +62,14 @@ if has_cudf:
     def translate_nodes_numpyvector2cudfvector(
         x: NumpyVectorType, **props
     ) -> CuDFVector:
-        data = x.value
-        series = cudf.Series(data)
+        series = cudf.Series(x)
         return CuDFVector(series)
 
     @translator
     def translate_vector_cudfvector2numpyvector(
         x: CuDFVector, **props
     ) -> NumpyVectorType:
-        np_vector = cupy.asnumpy(x.values)
+        np_vector = cupy.asnumpy(x.value.values)
         return np_vector
 
     @translator
@@ -92,29 +91,14 @@ if has_cudf:
     def translate_nodes_numpynodeset2cudfnodeset(
         x: NumpyNodeSet, **props
     ) -> CuDFNodeSet:
-        data = cudf.Series(x.nodes())
+        data = cudf.Series(x.value)
         return CuDFNodeSet(data)
 
     @translator
     def translate_nodes_cudfnodeset2numpynodeset(
         x: CuDFNodeSet, **props
     ) -> NumpyNodeSet:
-        if isinstance(x.value.index, cudf.core.index.RangeIndex):
-            x_index_min = x.value.index.start
-            x_index_max = x.value.index.stop - 1
-        else:
-            x_index_min = x.value.index.min()
-            x_index_max = x.value.index.max()
-        x_density = (x_index_max + 1 - x_index_min) / (x_index_max + 1)
-        node_positions = cupy.asnumpy(x.value.index.values)
-        if x_density > 0.5:  # TODO consider moving this threshold out to a global
-            mask = np.zeros(x_index_max + 1, dtype=bool)
-            mask[node_positions] = True
-            node_ids = None
-        else:
-            node_ids = node_positions
-            mask = None
-        return NumpyNodeSet(node_ids=node_ids, mask=mask)
+        return NumpyNodeSet(cupy.asnumpy(x.value.index.values))
 
 
 if has_cudf and has_pandas:
@@ -170,7 +154,7 @@ if has_cudf and has_pandas:
 
 if has_cudf and has_scipy:
     import scipy.sparse as ss
-    from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap, ScipyGraph
+    from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap
 
     @translator
     def translate_edgeset_scipyedgeset2cudfedgeset(
@@ -186,10 +170,12 @@ if has_cudf and has_scipy:
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
         rc_pairs = zip(row_ids, column_ids)
+        rc_pairs = list(rc_pairs)  # TODO remove this
         if not is_directed:
-            rc_pairs = filter(lambda pair: pair[0] < pair[1], rc_pairs)
+            rc_pairs = filter(lambda pair: pair[0] <= pair[1], rc_pairs)
         rc_pairs = list(rc_pairs)
         df = cudf.DataFrame(rc_pairs, columns=["source", "target"])
+        print(f"props {repr(props)}")
         return CuDFEdgeSet(df, is_directed=is_directed)
 
     @translator
@@ -207,7 +193,7 @@ if has_cudf and has_scipy:
         column_ids = map(get_node_from_pos, coo_matrix.col)
         rcw_triples = zip(row_ids, column_ids, coo_matrix.data)
         if not is_directed:
-            rcw_triples = filter(lambda triple: triple[0] < triple[1], rcw_triples)
+            rcw_triples = filter(lambda triple: triple[0] <= triple[1], rcw_triples)
         rcw_triples = list(rcw_triples)
         df = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
         return CuDFEdgeMap(df, is_directed=is_directed)
@@ -217,51 +203,65 @@ if has_cudf and has_scipy:
         x: CuDFEdgeSet, **props
     ) -> ScipyEdgeSet:
         is_directed = x.is_directed
+        cdf = x.value
         node_list = np.unique(
-            cupy.asnumpy(x.value[[x.src_label, x.dst_label]].values).ravel("K")
+            cupy.asnumpy(cdf[[x.src_label, x.dst_label]].values).ravel("K")
         )
-        node_list.sort()
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
-        source_positions = list(map(get_id_pos, x.value[x.src_label].values_host))
-        target_positions = list(map(get_id_pos, x.value[x.dst_label].values_host))
         if not is_directed:
-            source_positions, target_positions = (
-                source_positions + target_positions,
-                target_positions + source_positions,
+            self_loop_mask = cdf[x.src_label] == cdf[x.dst_label]
+            self_loop_df = cdf[self_loop_mask]
+            no_self_loop_df = cdf[~self_loop_mask]
+            cdf = cudf.concat(
+                [
+                    no_self_loop_df,
+                    no_self_loop_df.rename(
+                        columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
+                    ),
+                    self_loop_df,
+                ]
             )
-        source_positions = np.array(source_positions)
+        source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
+        target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
         target_positions = np.array(target_positions)
         matrix = ss.coo_matrix(
             (np.ones(len(source_positions)), (source_positions, target_positions)),
             shape=(num_nodes, num_nodes),
         ).tocsr()
-        return ScipyEdgeSet(matrix, node_list)
+        return ScipyEdgeSet(matrix, node_list, aprops={"is_directed": is_directed})
 
     @translator
     def translate_edgemap_cudfedgemap2scipyedgemap(
         x: CuDFEdgeMap, **props
     ) -> ScipyEdgeMap:
         is_directed = x.is_directed
+        cdf = x.value
         node_list = np.unique(
-            cupy.asnumpy(x.value[[x.src_label, x.dst_label]].values).ravel("K")
+            cupy.asnumpy(cdf[[x.src_label, x.dst_label]].values).ravel("K")
         )
-        node_list.sort()
         num_nodes = len(node_list)
         id2pos = dict(map(reversed, enumerate(node_list)))
         get_id_pos = lambda node_id: id2pos[node_id]
-        source_positions = list(map(get_id_pos, x.value[x.src_label].values_host))
-        target_positions = list(map(get_id_pos, x.value[x.dst_label].values_host))
-        weights = cupy.asnumpy(x.value[x.weight_label].values)
         if not is_directed:
-            source_positions, target_positions = (
-                source_positions + target_positions,
-                target_positions + source_positions,
+            self_loop_mask = cdf[x.src_label] == cdf[x.dst_label]
+            self_loop_df = cdf[self_loop_mask]
+            no_self_loop_df = cdf[~self_loop_mask]
+            cdf = cudf.concat(
+                [
+                    no_self_loop_df,
+                    no_self_loop_df.rename(
+                        columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
+                    ),
+                    self_loop_df,
+                ]
             )
-            weights = np.concatenate([weights, weights])
+        source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
+        target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
+        weights = cupy.asnumpy(cdf[x.weight_label].values)
         matrix = ss.coo_matrix(
             (weights, (source_positions, target_positions)),
             shape=(num_nodes, num_nodes),
         ).tocsr()
-        return ScipyEdgeMap(matrix, node_list)
+        return ScipyEdgeMap(matrix, node_list, aprops={"is_directed": is_directed})
