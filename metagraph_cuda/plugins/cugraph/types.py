@@ -363,7 +363,7 @@ if has_cugraph:
             ]
             if len(common_nodes) != 0:
                 raise ValueError(
-                    f"Node IDs found in both parts of the graph: {common_nodes.values.tolist()}"
+                    f"Node IDs found in both partitions of the graph: {common_nodes.values.tolist()}"
                 )
             partition_nodes = cudf.concat([graph_node_sets[0], graph_node_sets[1]])
             unclaimed_nodes_mask = ~graph.nodes().isin(partition_nodes)
