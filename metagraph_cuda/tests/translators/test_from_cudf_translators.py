@@ -5,7 +5,7 @@ import numpy as np
 import cudf
 import io
 from metagraph.plugins.pandas.types import PandasEdgeSet
-from metagraph.plugins.python.types import PythonNodeSet, PythonNodeMap
+from metagraph.plugins.python.types import PythonNodeSetType, PythonNodeMapType
 from metagraph.plugins.numpy.types import NumpyNodeSet, NumpyNodeMap
 from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap
 
@@ -124,53 +124,23 @@ def test_cudf_node_map_to_python_node_map():
     dpr = mg.resolver
     keys = [3, 2, 1]
     values = [33, 22, 11]
-    cudf_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data, "val")
+    cudf_data = cudf.Series(values).set_index(keys)
+    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data)
 
-    python_dict = {k: v for k, v in zip(keys, values)}
-    intermediate = PythonNodeMap(python_dict)
-    y = dpr.translate(x, PythonNodeMap)
+    intermediate = {k: v for k, v in zip(keys, values)}
+    y = dpr.translate(x, PythonNodeMapType)
     dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, PythonNodeMap)) == 1
+    assert len(dpr.plan.translate(x, PythonNodeMapType)) == 1
 
 
-def test_fully_dense_cudf_node_map_to_numpy_node_map():
+def test_cudf_node_map_to_numpy_node_map():
     dpr = mg.resolver
     keys = [3, 2, 1, 0]
     values = [33, 22, 11, 00]
-    cudf_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data, "val")
+    cudf_data = cudf.Series(values).set_index(keys)
+    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data)
 
     intermediate = NumpyNodeMap(np.array([00, 11, 22, 33], dtype=int))
-    y = dpr.translate(x, NumpyNodeMap)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
-
-
-def test_mostly_dense_cudf_node_map_to_numpy_node_map():
-    dpr = mg.resolver
-    keys = [3, 2, 1]
-    values = [33, 22, 11]
-    cudf_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data, "val")
-
-    intermediate = NumpyNodeMap(
-        np.array([987654321, 11, 22, 33], dtype=int),
-        mask=np.array([0, 1, 1, 1], dtype=bool),
-    )
-    y = dpr.translate(x, NumpyNodeMap)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
-
-
-def test_sparse_cudf_node_map_to_numpy_node_map():
-    dpr = mg.resolver
-    keys = [400, 300]
-    values = [4, 3]
-    cudf_data = cudf.DataFrame({"key": keys, "val": values}).set_index("key")
-    x = dpr.wrappers.NodeMap.CuDFNodeMap(cudf_data, "val")
-
-    intermediate = NumpyNodeMap(np.array([3, 4], dtype=int), node_ids={300: 0, 400: 1})
     y = dpr.translate(x, NumpyNodeMap)
     dpr.assert_equal(y, intermediate)
     assert len(dpr.plan.translate(x, NumpyNodeMap)) == 1
@@ -181,31 +151,7 @@ def test_cudf_node_set_to_python_node_set():
     cudf_node_set = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
     x = dpr.translate(cudf_node_set, dpr.types.NodeSet.CuDFNodeSetType)
 
-    intermediate = dpr.wrappers.NodeSet.PythonNodeSet({3, 4, 2, 1})
-    y = dpr.translate(x, PythonNodeSet)
+    intermediate = {3, 4, 2, 1}
+    y = dpr.translate(x, PythonNodeSetType)
     dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, PythonNodeSet)) == 1
-
-
-def test_dense_cudf_node_set_to_numpy_node_set():
-    dpr = mg.resolver
-    numpy_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
-    x = dpr.translate(numpy_nodes, dpr.types.NodeSet.CuDFNodeSetType)
-
-    intermediate = dpr.wrappers.NodeSet.NumpyNodeSet(
-        mask=np.array([0, 1, 1, 1, 1], dtype=bool)
-    )
-    y = dpr.translate(x, NumpyNodeSet)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, NumpyNodeSet)) == 1
-
-
-def test_sparse_cudf_node_set_to_numpy_node_set():
-    dpr = mg.resolver
-    numpy_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([200, 300, 400, 100]))
-    x = dpr.translate(numpy_nodes, dpr.types.NodeSet.CuDFNodeSetType)
-
-    intermediate = dpr.wrappers.NodeSet.NumpyNodeSet(node_ids={200, 300, 400, 100})
-    y = dpr.translate(x, NumpyNodeSet)
-    dpr.assert_equal(y, intermediate)
-    assert len(dpr.plan.translate(x, NumpyNodeSet)) == 1
+    assert len(dpr.plan.translate(x, PythonNodeSetType)) == 1

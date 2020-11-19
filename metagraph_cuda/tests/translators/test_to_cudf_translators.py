@@ -121,8 +121,8 @@ def test_numpy_node_map_to_cudf_node_map():
 
     keys = [0, 1, 2]
     labels = [33, 22, 11]
-    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels}).set_index("key")
-    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
+    cdf_unwrapped = cudf.Series(labels).set_index(keys)
+    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped)
     y = dpr.translate(x, CuDFNodeMap)
     dpr.assert_equal(y, intermediate)
     assert len(dpr.plan.translate(x, CuDFNodeMap)) == 1
@@ -130,13 +130,12 @@ def test_numpy_node_map_to_cudf_node_map():
 
 def test_python_node_map_to_cudf_node_map():
     dpr = mg.resolver
-    python_data = {1: 11, 2: 22, 3: 33}
-    x = dpr.wrappers.NodeMap.PythonNodeMap(python_data)
+    x = {1: 11, 2: 22, 3: 33}
 
     keys = [1, 2, 3]
     labels = [11, 22, 33]
-    cdf_unwrapped = cudf.DataFrame({"key": keys, "label": labels}).set_index("key")
-    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped, "label")
+    cdf_unwrapped = cudf.Series(labels).set_index(keys)
+    intermediate = dpr.wrappers.NodeMap.CuDFNodeMap(cdf_unwrapped)
     y = dpr.translate(x, CuDFNodeMap)
     dpr.assert_equal(y, intermediate)
     assert len(dpr.plan.translate(x, CuDFNodeMap)) == 1
@@ -144,8 +143,7 @@ def test_python_node_map_to_cudf_node_map():
 
 def test_python_node_set_to_cudf_node_set():
     dpr = mg.resolver
-    python_data = {3, 4, 2, 1}
-    x = dpr.wrappers.NodeSet.PythonNodeSet(python_data)
+    x = {3, 4, 2, 1}
 
     intermediate = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series([2, 3, 4, 1]))
     y = dpr.translate(x, CuDFNodeSet)
