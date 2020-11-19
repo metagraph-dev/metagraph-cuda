@@ -99,7 +99,7 @@ if has_cudf:
 
     class CuDFNodeMap(NodeMapWrapper, abstract=NodeMap):
         """
-        CuDFNodeMap stores data in a cudf.Series where the index corresponds go the node ids
+        CuDFNodeMap stores data in a cudf.Series where the index corresponds to the node ids
         and the entries correspond to the mapped values.
         """
 
