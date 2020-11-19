@@ -346,7 +346,7 @@ if has_cugraph:
         ):
             """
             :param graph: cugraph.Graph instance s.t. cugraph.Graph.is_bipartite() returns True
-            :param nodes: Optional tuple of cudf.Series nodes0 and nodes1; indices are node ids and values are nodde weights
+            :param nodes: Optional tuple of cudf.Series nodes0 and nodes1; indices are node ids and values are node weights
             """
             self._assert_instance(graph, cugraph.Graph)
             self._assert(graph.is_bipartite(), f"{graph} is not bipartite")
