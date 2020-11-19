@@ -335,7 +335,8 @@ def test_cugraph_graph_to_scipy_graph():
                 [1, 0, 0, 0, 0],
                 [0, 0, 1, 0, 0],
                 [0, 0, 0, 0, 0],
-            ]
+            ],
+            dtype=bool,
         )
     )
     np_nodes = np.arange(5)

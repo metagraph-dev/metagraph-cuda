@@ -70,18 +70,7 @@ if has_cudf:
                 ret = known_props.copy()
 
                 # fast properties
-                for prop in {"is_dense", "dtype"} - ret.keys():
-                    if prop == "is_dense":
-                        if isinstance(obj.value.index, cudf.core.index.RangeIndex):
-                            ret[prop] = (
-                                obj.value.index.start == 0
-                                and obj.value.index.stop == len(obj.value)
-                            )
-                        else:
-                            ret[prop] = (
-                                obj.value.index.min() == 0
-                                and obj.value.index.max() == len(obj.value) - 1
-                            )
+                for prop in {"dtype"} - ret.keys():
                     if prop == "dtype":
                         ret[prop] = dtypes.dtypes_simplified[obj.value.dtype]
 
@@ -279,7 +268,10 @@ if has_cudf:
                 # slow properties, only compute if asked
                 for prop in props - ret.keys():
                     if prop == "has_negative_weights":
-                        ret[prop] = obj.value[obj.weight_label].lt(0).any()
+                        if ret["dtype"] == "bool":
+                            ret[prop] = None
+                        else:
+                            ret[prop] = obj.value[obj.weight_label].lt(0).any()
 
                 return ret
 
