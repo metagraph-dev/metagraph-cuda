@@ -170,7 +170,6 @@ if has_cudf and has_scipy:
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
         rc_pairs = zip(row_ids, column_ids)
-        rc_pairs = list(rc_pairs)  # TODO remove this
         if not is_directed:
             rc_pairs = filter(lambda pair: pair[0] <= pair[1], rc_pairs)
         rc_pairs = list(rc_pairs)
