@@ -211,15 +211,14 @@ if has_cudf and has_scipy:
                 columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
             )
             cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
-        node_list = cupy.asnumpy(
-            cupy.unique(cdf[[x.src_label, x.dst_label]].values.ravel())
-        )
+        node_list = cupy.unique(cdf[[x.src_label, x.dst_label]].values.ravel())
         num_nodes = len(node_list)
-        id2pos = dict(map(reversed, enumerate(node_list)))
-        get_id_pos = lambda node_id: id2pos[node_id]
-        source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
-        target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
-        target_positions = np.array(target_positions)
+        source_positions = cupy.searchsorted(node_list, cdf[x.src_label].values)
+        target_positions = cupy.searchsorted(node_list, cdf[x.dst_label].values)
+
+        node_list = cupy.asnumpy(node_list)
+        source_positions = cupy.asnumpy(source_positions)
+        target_positions = cupy.asnumpy(target_positions)
         matrix = ss.coo_matrix(
             (np.ones(len(source_positions)), (source_positions, target_positions)),
             shape=(num_nodes, num_nodes),
