@@ -33,8 +33,8 @@ if has_cudf:
     def translate_nodes_cudfnodemap2pythonnodemap(
         x: CuDFNodeMap, **props
     ) -> PythonNodeMapType:
-        cast = dtype_casting[dtypes.dtypes_simplified[x.value.dtype]]
-        data = {i.item(): cast(x.value.loc[i.item()]) for i in x.value.index.values}
+        python_dtype = dtype_casting[dtypes.dtypes_simplified[x.value.dtype]]
+        data = x.value.astype(python_dtype).to_pandas().to_dict()
         return data
 
     @translator
@@ -44,7 +44,7 @@ if has_cudf:
         keys = x.keys()
         keys_are_compact = max(keys) - min(keys) == len(keys) - 1
         if keys_are_compact:
-            keys = sorted(keys)
+            keys = range(min(keys), max(keys) + 1)
         values = [x[key] for key in keys]
         if keys_are_compact:
             keys = range(min(keys), max(keys) + 1)
@@ -170,13 +170,13 @@ if has_cudf and has_scipy:
         ]
         coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
-        row_ids = map(get_node_from_pos, coo_matrix.row)
-        column_ids = map(get_node_from_pos, coo_matrix.col)
-        rc_pairs = zip(row_ids, column_ids)
+        row_ids = x.node_list[coo_matrix.row]
+        column_ids = x.node_list[coo_matrix.col]
         if not is_directed:
-            rc_pairs = filter(lambda pair: pair[0] <= pair[1], rc_pairs)
-        rc_pairs = list(rc_pairs)
-        df = cudf.DataFrame(rc_pairs, columns=["source", "target"])
+            mask = row_ids <= column_ids
+            row_ids = row_ids[mask]
+            column_ids = column_ids[mask]
+        df = cudf.DataFrame({"source": row_ids, "target": column_ids})
         return CuDFEdgeSet(df, is_directed=is_directed)
 
     @translator
@@ -187,14 +187,17 @@ if has_cudf and has_scipy:
             "is_directed"
         ]
         coo_matrix = x.value.tocoo()
-        get_node_from_pos = lambda index: x.node_list[index]
-        row_ids = map(get_node_from_pos, coo_matrix.row)
-        column_ids = map(get_node_from_pos, coo_matrix.col)
-        rcw_triples = zip(row_ids, column_ids, coo_matrix.data)
+        row_ids = x.node_list[coo_matrix.row]
+        column_ids = x.node_list[coo_matrix.col]
+        weights = coo_matrix.data
         if not is_directed:
-            rcw_triples = filter(lambda triple: triple[0] <= triple[1], rcw_triples)
-        rcw_triples = list(rcw_triples)
-        df = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
+            mask = row_ids <= column_ids
+            row_ids = row_ids[mask]
+            column_ids = column_ids[mask]
+            weights = weights[mask]
+        df = cudf.DataFrame(
+            {"source": row_ids, "target": column_ids, "weight": weights}
+        )
         return CuDFEdgeMap(df, is_directed=is_directed)
 
     @translator
