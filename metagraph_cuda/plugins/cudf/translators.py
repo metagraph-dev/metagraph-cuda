@@ -41,8 +41,13 @@ if has_cudf:
     def translate_nodes_pythonnodemap2cudfnodemap(
         x: PythonNodeMapType, **props
     ) -> CuDFNodeMap:
-        keys, values = zip(*x.items())
-        # TODO consider special casing the situation when all the keys form a compact range
+        keys = x.keys()
+        keys_are_compact = max(keys) - min(keys) == len(keys) - 1
+        if keys_are_compact:
+            keys = sorted(keys)
+        values = [x[key] for key in keys]
+        if keys_are_compact:
+            keys = range(min(keys), max(keys) + 1)
         data = cudf.Series(values, index=keys)
         return CuDFNodeMap(data)
 
@@ -163,9 +168,7 @@ if has_cudf and has_scipy:
         is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
-        coo_matrix = (
-            x.value.tocoo()
-        )  # TODO consider handling CSR and COO cases separately
+        coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
@@ -183,9 +186,7 @@ if has_cudf and has_scipy:
         is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
             "is_directed"
         ]
-        coo_matrix = (
-            x.value.tocoo()
-        )  # TODO consider handling CSR and COO cases separately
+        coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
         column_ids = map(get_node_from_pos, coo_matrix.col)
@@ -200,14 +201,8 @@ if has_cudf and has_scipy:
     def translate_edgeset_cudfedgeset2scipyedgeset(
         x: CuDFEdgeSet, **props
     ) -> ScipyEdgeSet:
-        is_directed = x.is_directed
         cdf = x.value
-        node_list = np.unique(
-            cupy.asnumpy(cdf[[x.src_label, x.dst_label]].values).ravel("K")
-        )
-        num_nodes = len(node_list)
-        id2pos = dict(map(reversed, enumerate(node_list)))
-        get_id_pos = lambda node_id: id2pos[node_id]
+        is_directed = x.is_directed
         if not is_directed:
             self_loop_mask = cdf[x.src_label] == cdf[x.dst_label]
             self_loop_df = cdf[self_loop_mask]
@@ -216,6 +211,12 @@ if has_cudf and has_scipy:
                 columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
             )
             cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+        node_list = cupy.asnumpy(
+            cupy.unique(cdf[[x.src_label, x.dst_label]].values.ravel())
+        )
+        num_nodes = len(node_list)
+        id2pos = dict(map(reversed, enumerate(node_list)))
+        get_id_pos = lambda node_id: id2pos[node_id]
         source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
         target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
         target_positions = np.array(target_positions)
