@@ -14,20 +14,26 @@ from metagraph_cuda.plugins.cudf.types import (
 
 def test_scipy_edge_set_to_cudf_edge_set():
     """
-          +-+
- ------>  |1|
- |        +-+
- | 
- |         |
- |         v
+              +-+
+     ------>  |1|
+     |        +-+
+     |
+     |         |
+     |         v
 
-+-+  <--  +-+       +-+
-|0|       |2|  <--  |3|
-+-+  -->  +-+       +-+
-"""
+    +-+  <--  +-+       +-+
+    |0|       |2|  <--  |3|
+    +-+  -->  +-+       +-+"""
     dpr = mg.resolver
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 1, 1, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 1, 0],])
+        np.array(
+            [
+                [0, 1, 1, 0],
+                [0, 0, 1, 0],
+                [1, 0, 0, 0],
+                [0, 0, 1, 0],
+            ]
+        )
     )
     x = dpr.wrappers.EdgeSet.ScipyEdgeSet(scipy_sparse_matrix)
 
@@ -45,22 +51,28 @@ def test_scipy_edge_set_to_cudf_edge_set():
 
 def test_scipy_edge_map_to_cudf_edge_map():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 9, 7, 0], [0, 0, 6, 0], [8, 0, 0, 0], [0, 0, 5, 0],])
+        np.array(
+            [
+                [0, 9, 7, 0],
+                [0, 0, 6, 0],
+                [8, 0, 0, 0],
+                [0, 0, 5, 0],
+            ]
+        )
     )
     x = dpr.wrappers.EdgeMap.ScipyEdgeMap(scipy_sparse_matrix)
 
@@ -80,17 +92,16 @@ def test_scipy_edge_map_to_cudf_edge_map():
 
 def test_pandas_edge_set_to_cudf_edge_set():
     """
-          +-+
- ------>  |1|
- |        +-+
- | 
- |         |
- |         v
+              +-+
+     ------>  |1|
+     |        +-+
+     |
+     |         |
+     |         v
 
-+-+  <--  +-+       +-+
-|0|       |2|  <--  |3|
-+-+  -->  +-+       +-+
-"""
+    +-+  <--  +-+       +-+
+    |0|       |2|  <--  |3|
+    +-+  -->  +-+       +-+"""
     dpr = mg.resolver
     csv_data = """
 Source,Destination

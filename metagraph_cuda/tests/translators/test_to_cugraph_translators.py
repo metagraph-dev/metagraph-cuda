@@ -22,7 +22,14 @@ def test_scipy_edge_set_to_cugraph_edge_set():
     +-+  -->  +-+       +-+"""
     dpr = mg.resolver
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 1, 1, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 1, 0],])
+        np.array(
+            [
+                [0, 1, 1, 0],
+                [0, 0, 1, 0],
+                [1, 0, 0, 0],
+                [0, 0, 1, 0],
+            ]
+        )
     )
     x = dpr.wrappers.EdgeSet.ScipyEdgeSet(scipy_sparse_matrix)
 
@@ -30,9 +37,7 @@ def test_scipy_edge_set_to_cugraph_edge_set():
     destinations = [1, 2, 2, 0, 2]
     cdf = cudf.DataFrame({"Source": sources, "Destination": destinations})
     g = cugraph.DiGraph()
-    g.from_cudf_edgelist(
-        cdf, source="Source", destination="Destination",
-    )
+    g.from_cudf_edgelist(cdf, source="Source", destination="Destination")
     intermediate = dpr.wrappers.EdgeSet.CuGraphEdgeSet(g)
 
     y = dpr.translate(x, CuGraphEdgeSet)
@@ -56,7 +61,14 @@ def test_scipy_edge_map_to_cugraph_edge_map():
     +-+  -8->  +-+        +-+"""
     dpr = mg.resolver
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 9, 8, 0], [0, 0, 6, 0], [7, 0, 0, 0], [0, 0, 5, 0],])
+        np.array(
+            [
+                [0, 9, 8, 0],
+                [0, 0, 6, 0],
+                [7, 0, 0, 0],
+                [0, 0, 5, 0],
+            ]
+        )
     )
     x = dpr.wrappers.EdgeMap.ScipyEdgeMap(scipy_sparse_matrix)
 
@@ -169,7 +181,7 @@ def test_pandas_edge_set_to_cugraph_edge_set():
     |0|       |2|  <--  |3|
     +-+  -->  +-+       +-+"""
     dpr = mg.resolver
-    pdf = pd.DataFrame({"src": (0, 0, 2, 1, 3), "dst": (1, 2, 0, 2, 2),})
+    pdf = pd.DataFrame({"src": (0, 0, 2, 1, 3), "dst": (1, 2, 0, 2, 2)})
     x = dpr.wrappers.EdgeSet.PandasEdgeSet(
         pdf, src_label="src", dst_label="dst", is_directed=True
     )
@@ -201,7 +213,7 @@ def test_pandas_edge_map_to_cugraph_edge_map():
     +-+  -8->  +-+        +-+"""
     dpr = mg.resolver
     pdf = pd.DataFrame(
-        {"src": (0, 0, 2, 1, 3), "dst": (1, 2, 0, 2, 2), "w": (9, 8, 7, 6, 5),}
+        {"src": (0, 0, 2, 1, 3), "dst": (1, 2, 0, 2, 2), "w": (9, 8, 7, 6, 5)}
     )
     x = dpr.wrappers.EdgeMap.PandasEdgeMap(
         pdf, src_label="src", dst_label="dst", weight_label="w", is_directed=True
@@ -256,9 +268,7 @@ def test_scipy_graph_to_cugraph_graph():
     destinations = [1, 2, 2, 0, 2]
     cdf = cudf.DataFrame({"Source": sources, "Destination": destinations})
     g = cugraph.DiGraph()
-    g.from_cudf_edgelist(
-        cdf, source="Source", destination="Destination",
-    )
+    g.from_cudf_edgelist(cdf, source="Source", destination="Destination")
     intermediate = dpr.wrappers.Graph.CuGraph(g, cudf.Series(range(5)))
 
     y = dpr.translate(x, CuGraph)

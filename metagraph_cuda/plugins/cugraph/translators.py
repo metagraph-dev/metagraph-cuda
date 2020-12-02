@@ -125,7 +125,7 @@ if has_cugraph and has_pandas:
         )["is_directed"]
         pdf = x.value.view_edge_list().to_pandas()
         return PandasEdgeSet(
-            pdf, src_label="src", dst_label="dst", is_directed=is_directed,
+            pdf, src_label="src", dst_label="dst", is_directed=is_directed
         )
 
     @translator
@@ -167,9 +167,7 @@ if has_cugraph and has_scipy:
         rc_pairs = list(rc_pairs)
         cdf = cudf.DataFrame(rc_pairs, columns=["source", "target"])
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
-        graph.from_cudf_edgelist(
-            cdf, source="source", destination="target",
-        )
+        graph.from_cudf_edgelist(cdf, source="source", destination="target")
         return CuGraphEdgeSet(graph)
 
     @translator
@@ -191,7 +189,7 @@ if has_cugraph and has_scipy:
         cdf = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
         graph.from_cudf_edgelist(
-            cdf, source="source", destination="target", edge_attr="weight",
+            cdf, source="source", destination="target", edge_attr="weight"
         )
         return CuGraphEdgeMap(graph)
 
@@ -235,7 +233,7 @@ if has_cugraph and has_scipy:
             self_loop_df = gdf[self_loop_mask]
             no_self_loop_df = gdf[~self_loop_mask]
             repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
-            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df])
         source_positions = list(map(get_id_pos, gdf["src"].values_host))
         target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         weights = cupy.asnumpy(gdf["weights"].values)
@@ -268,7 +266,7 @@ if has_cugraph and has_scipy:
             self_loop_df = gdf[self_loop_mask]
             no_self_loop_df = gdf[~self_loop_mask]
             repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
-            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df])
         source_positions = list(map(get_id_pos, gdf["src"].values_host))
         target_positions = list(map(get_id_pos, gdf["dst"].values_host))
         weights = (
@@ -407,7 +405,7 @@ if has_cugraph and has_networkx:
             }
             cdf = cudf.DataFrame(cdf_data)
             g.from_cudf_edgelist(
-                cdf, source="source", destination="destination", edge_attr="weight",
+                cdf, source="source", destination="destination", edge_attr="weight"
             )
         else:
             edgelist = x.value.edges()
@@ -495,7 +493,7 @@ if has_cugraph and has_networkx:
             }
             cdf = cudf.DataFrame(cdf_data)
             g.from_cudf_edgelist(
-                cdf, source="source", destination="destination", edge_attr="weight",
+                cdf, source="source", destination="destination", edge_attr="weight"
             )
             edges = CuGraphEdgeMap(g)
         else:

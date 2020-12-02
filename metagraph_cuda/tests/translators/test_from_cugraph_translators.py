@@ -13,17 +13,16 @@ from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap, ScipyGraph
 
 def test_cugraph_edge_set_to_scipy_edge_set():
     """
-          +-+
- ------>  |1|
- |        +-+
- | 
- |         |
- |         v
+              +-+
+     ------>  |1|
+     |        +-+
+     |
+     |         |
+     |         v
 
-+-+  <--  +-+       +-+
-|0|       |2|  <--  |3|
-+-+  -->  +-+       +-+
-"""
+    +-+  <--  +-+       +-+
+    |0|       |2|  <--  |3|
+    +-+  -->  +-+       +-+"""
     dpr = mg.resolver
     csv_data = """
 Source,Destination
@@ -40,7 +39,14 @@ Source,Destination
     x = dpr.wrappers.EdgeSet.CuGraphEdgeSet(g)
 
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 1, 1, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 1, 0],])
+        np.array(
+            [
+                [0, 1, 1, 0],
+                [0, 0, 1, 0],
+                [1, 0, 0, 0],
+                [0, 0, 1, 0],
+            ]
+        )
     )
     intermediate = ScipyEdgeSet(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeSet)
@@ -50,19 +56,18 @@ Source,Destination
 
 def test_cugraph_edge_map_to_scipy_edge_map():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -77,7 +82,14 @@ def test_cugraph_edge_map_to_scipy_edge_map():
     x = dpr.wrappers.EdgeMap.CuGraphEdgeMap(g)
 
     scipy_sparse_matrix = ss.csr_matrix(
-        np.array([[0, 9, 7, 0], [0, 0, 6, 0], [8, 0, 0, 0], [0, 0, 5, 0],])
+        np.array(
+            [
+                [0, 9, 7, 0],
+                [0, 0, 6, 0],
+                [8, 0, 0, 0],
+                [0, 0, 5, 0],
+            ]
+        )
     )
     intermediate = ScipyEdgeMap(scipy_sparse_matrix)
     y = dpr.translate(x, ScipyEdgeMap)
@@ -87,11 +99,11 @@ def test_cugraph_edge_map_to_scipy_edge_map():
 
 def test_unweighted_directed_edge_list_cugraph_to_nextworkx():
     """
-0 < -   1       5   - > 6
-      ^       ^ ^       
-|   /   |   /   |   /    
-v       v /       v      
-3   - > 4 < -   2   - > 7
+    0 < -   1       5   - > 6
+          ^       ^ ^
+    |   /   |   /   |   /
+    v       v /       v
+    3   - > 4 < -   2   - > 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -124,13 +136,13 @@ v       v /       v
 
 def test_weighted_directed_edge_list_cugraph_to_nextworkx():
     """
-0 <--2-- 1        5 --10-> 6
-|      ^ |      ^ ^      / 
-|     /  |     /  |     /   
-1    7   3    9   5   11   
-|   /    |  /     |   /    
-v        v /        v      
-3 --8--> 4 <--4-- 2 --6--> 7
+    0 <--2-- 1        5 --10-> 6
+    |      ^ |      ^ ^      /
+    |     /  |     /  |     /
+    1    7   3    9   5   11
+    |   /    |  /     |   /
+    v        v /        v
+    3 --8--> 4 <--4-- 2 --6--> 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -168,13 +180,13 @@ v        v /        v
 
 def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
     """
-0 -----> 1 
-^^       | 
-| \_     | 
-|   \_   |
-|     \  | 
-|      \ v 
-2 <----- 3 
+    0 -----> 1
+    ^^       |
+    | \_     |
+    |   \_   |
+    |     \  |
+    |      \ v
+    2 <----- 3
     """
     dpr = mg.resolver
     sparse_matrix = ss.csr_matrix(
@@ -204,13 +216,13 @@ def test_unweighted_directed_adjacency_list_cugraph_to_networkx():
 
 def test_weighted_directed_adjacency_list_cugraph_to_networkx():
     """
-0 -1.1-> 1 
-^^       | 
-| \     2.2 
-|  4.4   |
-3.3   \  | 
-|      \ v 
-2 <-5.5- 3 
+    0 -1.1-> 1
+    ^^       |
+    | \     2.2
+    |  4.4   |
+    3.3   \  |
+    |      \ v
+    2 <-5.5- 3
     """
     dpr = mg.resolver
     sparse_matrix = ss.csr_matrix(
@@ -241,11 +253,11 @@ def test_weighted_directed_adjacency_list_cugraph_to_networkx():
 
 def test_cugraph_edge_set_to_pandas_edge_set():
     """
-0 < -   1       5   - > 6
-      ^       ^ ^       
-|   /   |   /   |   /    
-v       v /       v      
-3   - > 4 < -   2   - > 7
+    0 < -   1       5   - > 6
+          ^       ^ ^
+    |   /   |   /   |   /
+    v       v /       v
+    3   - > 4 < -   2   - > 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -266,13 +278,13 @@ v       v /       v
 
 def test_cugraph_edge_map_to_pandas_edge_map():
     """
-0 <--2-- 1        5 --10-> 6
-|      ^ |      ^ ^      / 
-|     /  |     /  |     /   
-1    7   3    9   5   11   
-|   /    |  /     |   /    
-v        v /        v      
-3 --8--> 4 <--4-- 2 --6--> 7
+    0 <--2-- 1        5 --10-> 6
+    |      ^ |      ^ ^      /
+    |     /  |     /  |     /
+    1    7   3    9   5   11
+    |   /    |  /     |   /
+    v        v /        v
+    3 --8--> 4 <--4-- 2 --6--> 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -304,26 +316,23 @@ v        v /        v
 
 def test_cugraph_graph_to_scipy_graph():
     """
-          +-+       +-+
- ------>  |1|       |4|
- |        +-+       +-+
- | 
- |         |
- |         v
+              +-+       +-+
+     ------>  |1|       |4|
+     |        +-+       +-+
+     |
+     |         |
+     |         v
 
-+-+  <--  +-+       +-+
-|0|       |2|  <--  |3|
-+-+  -->  +-+       +-+
-"""
+    +-+  <--  +-+       +-+
+    |0|       |2|  <--  |3|
+    +-+  -->  +-+       +-+"""
     dpr = mg.resolver
 
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
     cdf = cudf.DataFrame({"Source": sources, "Destination": destinations})
     g = cugraph.DiGraph()
-    g.from_cudf_edgelist(
-        cdf, source="Source", destination="Destination",
-    )
+    g.from_cudf_edgelist(cdf, source="Source", destination="Destination")
     cudf_nodes = dpr.wrappers.NodeSet.CuDFNodeSet(cudf.Series(range(5)))
     x = dpr.wrappers.Graph.CuGraph(g, cudf.Series(range(5)), False)
 
