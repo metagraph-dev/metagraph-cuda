@@ -461,7 +461,7 @@ if has_cugraph:
 
                 # slow properties, only compute if asked
                 slow_props = props - ret.keys()
-                if {"edge_has_negative_weights",} & slow_props:
+                if {"edge_has_negative_weights"} & slow_props:
                     for prop in slow_props:
                         if prop == "edge_has_negative_weights":
                             if ret["edge_dtype"] == "bool" or ret["edge_type"] == "set":

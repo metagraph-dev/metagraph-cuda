@@ -215,7 +215,7 @@ if has_cudf and has_scipy:
             repeat_df = no_self_loop_df.rename(
                 columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
             )
-            cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+            cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df])
         source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
         target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
         target_positions = np.array(target_positions)
@@ -244,7 +244,7 @@ if has_cudf and has_scipy:
             repeat_df = no_self_loop_df.rename(
                 columns={x.src_label: x.dst_label, x.dst_label: x.src_label}
             )
-            cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+            cdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df])
         source_positions = list(map(get_id_pos, cdf[x.src_label].values_host))
         target_positions = list(map(get_id_pos, cdf[x.dst_label].values_host))
         weights = cupy.asnumpy(cdf[x.weight_label].values)

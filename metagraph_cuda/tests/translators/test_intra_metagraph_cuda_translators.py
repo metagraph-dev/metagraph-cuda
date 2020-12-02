@@ -24,19 +24,18 @@ def test_cudf_node_map_to_cudf_node_set():
 
 def test_cudf_edge_map_to_cudf_edge_set():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -62,19 +61,18 @@ def test_cudf_edge_map_to_cudf_edge_set():
 
 def test_cugraph_edge_map_to_cugraph_edge_set():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -100,11 +98,11 @@ def test_cugraph_edge_map_to_cugraph_edge_set():
 
 def test_unweighted_directed_edge_set_cugraph_to_cudf_edge_set():
     """
-0 < -   1       5   - > 6
-      ^       ^ ^       
-|   /   |   /   |   /    
-v       v /       v      
-3   - > 4 < -   2   - > 7
+    0 < -   1       5   - > 6
+          ^       ^ ^
+    |   /   |   /   |   /
+    v       v /       v
+    3   - > 4 < -   2   - > 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -125,13 +123,13 @@ v       v /       v
 
 def test_weighted_directed_edge_set_cugraph_to_cudf_edge_set():
     """
-0 <--2-- 1        5 --10-> 6
-|      ^ |      ^ ^      / 
-|     /  |     /  |     /   
-1    7   3    9   5   11   
-|   /    |  /     |   /    
-v        v /        v      
-3 --8--> 4 <--4-- 2 --6--> 7
+    0 <--2-- 1        5 --10-> 6
+    |      ^ |      ^ ^      /
+    |     /  |     /  |     /
+    1    7   3    9   5   11
+    |   /    |  /     |   /
+    v        v /        v
+    3 --8--> 4 <--4-- 2 --6--> 7
     """
     dpr = mg.resolver
     sources = [0, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
@@ -159,13 +157,13 @@ v        v /        v
 
 def test_unweighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     """
-0 -----> 1 
-^^       | 
-| \_     | 
-|   \_   |
-|     \  | 
-|      \ v 
-2 <----- 3 
+    0 -----> 1
+    ^^       |
+    | \_     |
+    |   \_   |
+    |     \  |
+    |      \ v
+    2 <----- 3
     """
     dpr = mg.resolver
     sparse_matrix = ss.csr_matrix(
@@ -191,13 +189,13 @@ def test_unweighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
 
 def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
     """
-0 -1.1-> 1 
-^^       | 
-| \     2.2 
-|  4.4   |
-3.3   \  | 
-|      \ v 
-2 <-5.5- 3 
+    0 -1.1-> 1
+    ^^       |
+    | \     2.2
+    |  4.4   |
+    3.3   \  |
+    |      \ v
+    2 <-5.5- 3
     """
     dpr = mg.resolver
     sparse_matrix = ss.csr_matrix(
@@ -227,19 +225,18 @@ def test_weighted_directed_adjacency_set_cugraph_to_cudf_edge_set():
 
 def test_cudf_edge_map_to_cugraph_edge_map():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
@@ -270,19 +267,18 @@ def test_cudf_edge_map_to_cugraph_edge_map():
 
 def test_cugraph_edge_map_to_cudf_edge_map():
     """
-           +-+
- ------>   |1|
- |         +-+
- | 
- |          |
- 9          6
- |          |
- |          v
+               +-+
+     ------>   |1|
+     |         +-+
+     |
+     |          |
+     9          6
+     |          |
+     |          v
 
-+-+  <-8-  +-+        +-+
-|0|        |2|  <-5-  |3|
-+-+  -7->  +-+        +-+
-"""
+    +-+  <-8-  +-+        +-+
+    |0|        |2|  <-5-  |3|
+    +-+  -7->  +-+        +-+"""
     dpr = mg.resolver
     sources = [0, 0, 1, 2, 3]
     destinations = [1, 2, 2, 0, 2]
