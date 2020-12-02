@@ -25,7 +25,7 @@ jobs:
           conda config --set always_yes yes --set changeps1 no
           conda update -q conda
           conda info -a
-          conda create -n mgcuda -c conda-forge python=#{{ env.MAIN_PYVER }} 'black>=20.8b1'
+          conda create -n mgcuda -c conda-forge python=${{ env.MAIN_PYVER }} 'black>=20.8b1'
           conda activate mgcuda
       - name: Lint with Black
         run: |
