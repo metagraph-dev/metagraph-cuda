@@ -149,14 +149,22 @@ if has_cugraph and has_scipy:
     import scipy.sparse as ss
     from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap, ScipyGraph
 
+    # TODO we can special case CSR via cugraph.structure.graph.Graph.from_cudf_adjlist
+    # for the Scipy* -> Cu* translators
+    # We may have to use cugraph.structure.NumberMap or cugraph.Graph.renumber_map
+    # if the node_list from Scipy* is not equivalent to an np.arange
+
     @translator
     def translate_edgeset_scipyedgeset2cugraphedgeset(
         x: ScipyEdgeSet, **props
     ) -> CuGraphEdgeSet:
-        is_directed = ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
-            "is_directed"
-        ]
-        # TODO can we special case CSR? example at https://docs.rapids.ai/api/cugraph/stable/api.html#cugraph.structure.graph.Graph.from_cudf_adjlist
+        is_directed = (
+            props["is_directed"]
+            if "is_directed" in props
+            else ScipyEdgeSet.Type.compute_abstract_properties(x, {"is_directed"})[
+                "is_directed"
+            ]
+        )
         coo_matrix = x.value.tocoo()
         row_ids = x.node_list[coo_matrix.row]
         column_ids = x.node_list[coo_matrix.col]
@@ -175,10 +183,14 @@ if has_cugraph and has_scipy:
     def translate_edgemap_scipyedgemap2cugraphedgemap(
         x: ScipyEdgeMap, **props
     ) -> CuGraphEdgeMap:
-        is_directed = ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
-            "is_directed"
-        ]
-        # TODO can we special case CSR? example at https://docs.rapids.ai/api/cugraph/stable/api.html#cugraph.structure.graph.Graph.from_cudf_adjlist
+        is_directed = (
+            props["is_directed"]
+            if "is_directed" in props
+            else ScipyEdgeMap.Type.compute_abstract_properties(x, {"is_directed"})[
+                "is_directed"
+            ]
+        )
+
         coo_matrix = x.value.tocoo()
         get_node_from_pos = lambda index: x.node_list[index]
         row_ids = map(get_node_from_pos, coo_matrix.row)
@@ -199,24 +211,52 @@ if has_cugraph and has_scipy:
         x: CuGraphEdgeSet, **props
     ) -> ScipyEdgeSet:
         is_directed = x.value.is_directed()
-        node_list = x.value.nodes().values_host
-        num_nodes = len(node_list)
-        id2pos = dict(map(reversed, enumerate(node_list)))
-        get_id_pos = lambda node_id: id2pos[node_id]
-        gdf = x.value.view_edge_list()
-        source_positions = list(map(get_id_pos, gdf["src"].values_host))
-        target_positions = list(map(get_id_pos, gdf["dst"].values_host))
-        if not is_directed:
-            source_positions, target_positions = (
-                source_positions + target_positions,
-                target_positions + source_positions,
+
+        if x.value.adjlist is not None:
+            # TODO test this block
+            indptr, indices, _ = x.value.view_adj_list()
+            indptr = cupy.asnumpy(indptr.values)
+            indices = cupy.asnumpy(indices.values)
+            data = np.ones(len(indices), dtype=bool)
+            matrix = ss.csr_matrix((data, indices, indptr))
+            if x.value.renumber_map is None:
+                node_list = None
+            else:
+                # TODO test this branch
+                nrows = matrix.shape[0]
+                internal_ids = cudf.Series(cupy.arange(nrows))
+                external_id_df = x.value.renumber_map.from_internal_vertex_id(
+                    internal_ids
+                )
+                external_ids = external_id_df["0"]
+                node_list = cupy.asnumpy(external_ids.values)
+        else:
+            node_list = cupy.sort(x.value.nodes().values)
+            num_nodes = len(node_list)
+            gdf = x.value.view_edge_list()
+            source_positions = cupy.searchsorted(node_list, gdf["src"].values)
+            target_positions = cupy.searchsorted(node_list, gdf["dst"].values)
+            if not is_directed:
+                non_self_loop_mask = source_positions != target_positions
+                source_positions, target_positions = (
+                    cupy.concatenate(
+                        [source_positions, target_positions[non_self_loop_mask]]
+                    ),
+                    cupy.concatenate(
+                        [target_positions, source_positions[non_self_loop_mask]]
+                    ),
+                )
+
+            node_list = cupy.asnumpy(node_list)
+            source_positions = cupy.asnumpy(source_positions)
+            target_positions = cupy.asnumpy(target_positions)
+            matrix = ss.coo_matrix(
+                (
+                    np.ones(len(source_positions), dtype=bool),
+                    (source_positions, target_positions),
+                ),
+                shape=(num_nodes, num_nodes),
             )
-        source_positions = np.array(source_positions)
-        target_positions = np.array(target_positions)
-        matrix = ss.coo_matrix(
-            (np.ones(len(source_positions)), (source_positions, target_positions)),
-            shape=(num_nodes, num_nodes),
-        ).tocsr()
         return ScipyEdgeSet(matrix, node_list, aprops={"is_directed": is_directed})
 
     @translator
@@ -224,26 +264,53 @@ if has_cugraph and has_scipy:
         x: CuGraphEdgeMap, **props
     ) -> ScipyEdgeMap:
         is_directed = x.value.is_directed()
-        node_list = x.value.nodes().values_host
-        num_nodes = len(node_list)
-        id2pos = dict(map(reversed, enumerate(node_list)))
-        get_id_pos = lambda node_id: id2pos[node_id]
-        gdf = x.value.view_edge_list()
-        if not is_directed:
-            self_loop_mask = gdf.src == gdf.dst
-            self_loop_df = gdf[self_loop_mask]
-            no_self_loop_df = gdf[~self_loop_mask]
-            repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
-            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
-        source_positions = list(map(get_id_pos, gdf["src"].values_host))
-        target_positions = list(map(get_id_pos, gdf["dst"].values_host))
-        weights = cupy.asnumpy(gdf["weights"].values)
-        source_positions = np.array(source_positions)
-        target_positions = np.array(target_positions)
-        matrix = ss.coo_matrix(
-            (weights, (source_positions, target_positions)),
-            shape=(num_nodes, num_nodes),
-        ).tocsr()
+        if x.value.adjlist is not None:
+            # TODO test this block
+            indptr, indices, data = x.value.view_adj_list()
+            indptr = cupy.asnumpy(indptr.values)
+            indices = cupy.asnumpy(indices.values)
+            data = cupy.asnumpy(data.values)
+            edge_dtype = (
+                props["dtype"]
+                if "dtype" in props
+                else CuGraphEdgeMap.Type.compute_abstract_properties(x, {"dtype"})[
+                    "dtype"
+                ]
+            )
+            caster = dtype_casting[edge_dtype]
+            data = data.astype(caster)
+            matrix = ss.csr_matrix((data, indices, indptr))
+            if x.value.renumber_map is None:
+                node_list = None
+            else:
+                nrows = matrix.shape[0]
+                internal_ids = cudf.Series(cupy.arange(nrows))
+                external_id_df = x.value.renumber_map.from_internal_vertex_id(
+                    internal_ids
+                )
+                external_ids = external_id_df["0"]
+                node_list = cupy.asnumpy(external_ids.values)
+        else:
+            node_list = cupy.sort(x.value.nodes().values)
+            num_nodes = len(node_list)
+            gdf = x.value.view_edge_list()
+            if not is_directed:
+                self_loop_mask = gdf.src == gdf.dst
+                self_loop_df = gdf[self_loop_mask]
+                no_self_loop_df = gdf[~self_loop_mask]
+                repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
+                gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+            source_positions = cupy.searchsorted(node_list, gdf["src"].values)
+            target_positions = cupy.searchsorted(node_list, gdf["dst"].values)
+
+            node_list = cupy.asnumpy(node_list)
+            source_positions = cupy.asnumpy(source_positions)
+            target_positions = cupy.asnumpy(target_positions)
+            weights = cupy.asnumpy(gdf["weights"].values)
+            matrix = ss.coo_matrix(
+                (weights, (source_positions, target_positions)),
+                shape=(num_nodes, num_nodes),
+            )
         return ScipyEdgeMap(matrix, node_list, aprops={"is_directed": is_directed})
 
     @translator
@@ -256,31 +323,102 @@ if has_cugraph and has_scipy:
         )
         is_weighted = "map" == aprops["edge_type"]
         is_directed = aprops["is_directed"]
-        node_list = cupy.asnumpy(x.nodes.index.to_array())
-        node_values = cupy.asnumpy(x.nodes.values) if x.has_node_weights else None
-        num_nodes = len(node_list)
-        id2pos = dict(map(reversed, enumerate(node_list)))
-        get_id_pos = lambda node_id: id2pos[node_id]
-        gdf = x.value.view_edge_list()
-        if not is_directed:
-            self_loop_mask = gdf.src == gdf.dst
-            self_loop_df = gdf[self_loop_mask]
-            no_self_loop_df = gdf[~self_loop_mask]
-            repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
-            gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
-        source_positions = list(map(get_id_pos, gdf["src"].values_host))
-        target_positions = list(map(get_id_pos, gdf["dst"].values_host))
-        weights = (
-            cupy.asnumpy(gdf["weights"].values)
-            if is_weighted
-            else np.ones(len(source_positions), dtype=bool)
-        )
-        source_positions = np.array(source_positions)
-        target_positions = np.array(target_positions)
-        matrix = ss.coo_matrix(
-            (weights, (source_positions, target_positions)),
-            shape=(num_nodes, num_nodes),
-        ).tocsr()
+
+        if x.value.adjlist is not None:
+            # TODO test this block
+            indptr, indices, data = x.value.view_adj_list()
+
+            # Handle indptr
+            indptr: cupy.ndarray = indptr.values
+
+            # Calculate intermediate node_list (non-orphan nodes)
+            if x.value.renumber_map is not None:
+                internal_ids = cudf.Series(cupy.arange(x.value.number_of_vertices()))
+                external_id_df = x.value.renumber_map.from_internal_vertex_id(
+                    internal_ids
+                )
+                external_ids = external_id_df["0"]
+                node_list: cupy.ndarray = external_ids.values
+            else:
+                # TODO is x.value.nodes() guaranteed to not contain orphans? Test this.
+                node_list: cupy.ndarray = x.value.nodes()
+
+            # Handle orphans
+            orphan_node_mask: cupy.ndarray = ~x.nodes.index.isin(node_list)
+            orphan_nodes: cupy.ndarray = x.nodes.index[orphan_node_mask].values
+
+            # Calculate final node_list
+            node_list: cupy.ndarray = cupy.concatenate([node_list, orphan_nodes])
+            node_list: np.ndarray = cupy.asnumpy(node_list)
+
+            indptr: cupy.ndarray = cupy.concatenate(
+                [indptr, cupy.full(len(orphan_nodes), indptr[-1])]
+            )
+            indptr: np.ndarray = cupy.asnumpy(indptr)
+
+            # Handle indices
+            indices: np.ndarray = cupy.asnumpy(indices.values)
+
+            # Hande data
+            if not is_weighted:
+                data: np.ndarray = np.ones(len(indices), dtype=bool)
+            else:
+                edge_dtype = (
+                    props["edge_dtype"]
+                    if "edge_dtype" in props
+                    else CuGraph.Type.compute_abstract_properties(x, {"edge_dtype"})[
+                        "edge_dtype"
+                    ]
+                )
+                caster = dtype_casting[edge_dtype]
+                data: np.ndarray = cupy.asnumpy(data.values).astype(caster)
+
+            # Calculate node_values
+            if x.has_node_weights:
+                node_values = cupy.asnumpy(x.nodes.loc[node_list].values)
+            else:
+                node_values = None
+
+            node_count = len(node_list)
+            matrix = ss.csr_matrix(
+                (data, indices, indptr), shape=[node_count, node_count]
+            )
+
+        else:
+            gdf = x.value.view_edge_list()
+            if not is_directed:
+                self_loop_mask = gdf.src == gdf.dst
+                self_loop_df = gdf[self_loop_mask]
+                no_self_loop_df = gdf[~self_loop_mask]
+                repeat_df = no_self_loop_df.rename(columns={"src": "dst", "dst": "src"})
+                gdf = cudf.concat([no_self_loop_df, repeat_df, self_loop_df,])
+
+            node_list_sorted_indices = cupy.argsort(
+                x.nodes.index.values
+            )  # TODO consider storing the "nodes" attribute of a CuGraph as a sorted array
+            node_list = x.nodes.index.values[node_list_sorted_indices]
+            num_nodes = len(node_list)
+            source_positions = cupy.searchsorted(node_list, gdf["src"].values)
+            target_positions = cupy.searchsorted(node_list, gdf["dst"].values)
+
+            source_positions = cupy.asnumpy(source_positions)
+            target_positions = cupy.asnumpy(target_positions)
+            weights = (
+                cupy.asnumpy(gdf["weights"].values)
+                if is_weighted
+                else np.ones(len(source_positions), dtype=bool)
+            )
+            matrix = ss.coo_matrix(
+                (weights, (source_positions, target_positions)),
+                shape=(num_nodes, num_nodes),
+            )
+            node_list = cupy.asnumpy(node_list)
+            node_values = (
+                cupy.asnumpy(x.nodes.values[node_list_sorted_indices])
+                if x.has_node_weights
+                else None
+            )
+
         return ScipyGraph(matrix, node_list, node_values, aprops=aprops)
 
     @translator
@@ -303,21 +441,21 @@ if has_cugraph and has_scipy:
             and expected_edge_dtype != dtypes_simplified[coo_matrix.dtype]
         ):
             coo_matrix = coo_matrix.astype(expected_edge_dtype)
-        get_node_from_pos = lambda index: x.node_list[index]
-        row_ids = map(get_node_from_pos, coo_matrix.row)
-        column_ids = map(get_node_from_pos, coo_matrix.col)
-        ebunch = (
-            zip(row_ids, column_ids, coo_matrix.data)
-            if is_weighted
-            else zip(row_ids, column_ids)
-        )
+        row_ids = x.node_list[coo_matrix.row]
+        column_ids = x.node_list[coo_matrix.col]
+        if is_weighted:
+            weights = coo_matrix.data
         if not is_directed:
-            ebunch = filter(lambda pair: pair[0] <= pair[1], ebunch)
-        ebunch = list(ebunch)
-        columns = (
-            ["source", "target", "weight"] if is_weighted else ["source", "target"]
+            mask = row_ids <= column_ids
+            row_ids = row_ids[mask]
+            column_ids = column_ids[mask]
+            if is_weighted:
+                weights = weights[mask]
+        cdf = cudf.DataFrame(
+            {"source": row_ids, "target": column_ids, "weight": weights}
+            if is_weighted
+            else {"source": row_ids, "target": column_ids}
         )
-        cdf = cudf.DataFrame(ebunch, columns=columns)
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
         graph.from_cudf_edgelist(
             cdf,
@@ -326,9 +464,9 @@ if has_cugraph and has_scipy:
             edge_attr="weight" if is_weighted else None,
         )
         if has_node_weights:
-            nodes = cudf.Series(x.node_vals).set_index(x.node_list)
+            nodes = cudf.Series(x.node_vals, index=x.node_list)
         else:
-            nodes = cudf.Series(x.node_list).set_index(x.node_list)
+            nodes = cudf.Series(x.node_list, index=x.node_list)
         return CuGraph(graph, nodes, has_node_weights)
 
 

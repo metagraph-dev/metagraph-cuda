@@ -55,7 +55,7 @@ if has_cugraph:
         )
         return CuDFVector(bfs_ordered_vertices)
 
-    @concrete_algorithm("cluster.triangle_count")
+    @concrete_algorithm("clustering.triangle_count")
     def cugraph_triangle_count(graph: CuGraph) -> int:
         return cugraph.triangles(graph.value) // 3
 
@@ -124,7 +124,12 @@ if has_cugraph:
         edges: mg.Union[CuGraphEdgeSet, CuGraphEdgeMap],
         nodes: mg.Optional[mg.Union[CuDFNodeSet, CuDFNodeMap]],
     ) -> CuGraph:
-        return CuGraph(edges.value, nodes.value, isinstance(nodes, CuDFNodeMap))
+        # TODO is this algo tested when nodes is None?
+        return CuGraph(
+            edges.value,
+            nodes.value if nodes is not None else None,
+            isinstance(nodes, CuDFNodeMap),
+        )
 
     @concrete_algorithm("bipartite.graph_projection")
     def graph_projection(bgraph: CuGraphBipartiteGraph, nodes_retained: int) -> CuGraph:

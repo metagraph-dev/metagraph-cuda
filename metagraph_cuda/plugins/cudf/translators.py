@@ -89,7 +89,7 @@ if has_cudf:
         x: CuDFNodeMap, **props
     ) -> NumpyNodeMap:
         return NumpyNodeMap(
-            cupy.asnumpy(x.value.values), nodes=cupy.asnumpy(x.value.index.to_array())
+            cupy.asnumpy(x.value.values), nodes=cupy.asnumpy(x.value.index.values)
         )
 
     @translator
@@ -169,7 +169,6 @@ if has_cudf and has_scipy:
             "is_directed"
         ]
         coo_matrix = x.value.tocoo()
-        get_node_from_pos = lambda index: x.node_list[index]
         row_ids = x.node_list[coo_matrix.row]
         column_ids = x.node_list[coo_matrix.col]
         if not is_directed:
