@@ -55,7 +55,7 @@ if has_cugraph:
         )
         return CuDFVector(bfs_ordered_vertices)
 
-    @concrete_algorithm("cluster.triangle_count")
+    @concrete_algorithm("clustering.triangle_count")
     def cugraph_triangle_count(graph: CuGraph) -> int:
         return cugraph.triangles(graph.value) // 3
 
