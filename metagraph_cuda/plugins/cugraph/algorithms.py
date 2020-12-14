@@ -37,7 +37,7 @@ if has_cugraph:
 
     @concrete_algorithm("centrality.pagerank")
     def cugraph_pagerank(
-        graph: CuGraph, damping: float, maxiter: int, tolerance: float,
+        graph: CuGraph, damping: float, maxiter: int, tolerance: float
     ) -> CuDFNodeMap:
         pagerank = cugraph.pagerank(
             graph.value, alpha=damping, max_iter=maxiter, tol=tolerance
@@ -108,7 +108,7 @@ if has_cugraph:
 
     @concrete_algorithm("util.edgemap.from_edgeset")
     def cugraph_edge_map_from_edgeset(
-        edgeset: CuGraphEdgeSet, default_value: Any,
+        edgeset: CuGraphEdgeSet, default_value: Any
     ) -> CuGraphEdgeMap:
         g = _assign_uniform_weight(edgeset.value, default_value)
         return CuGraphEdgeMap(g)
