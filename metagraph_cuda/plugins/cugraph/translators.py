@@ -148,11 +148,7 @@ if has_cugraph and has_pandas:
 if has_cugraph and has_scipy:
     import scipy.sparse as ss
     from metagraph.plugins.scipy.types import ScipyEdgeSet, ScipyEdgeMap, ScipyGraph
-
-    # TODO we can special case CSR via cugraph.structure.graph.Graph.from_cudf_adjlist
-    # for the Scipy* -> Cu* translators
-    # We may have to use cugraph.structure.NumberMap or cugraph.Graph.renumber_map
-    # if the node_list from Scipy* is not equivalent to an np.arange
+    from cugraph.structure.number_map import NumberMap
 
     @translator
     def translate_edgeset_scipyedgeset2cugraphedgeset(
@@ -165,18 +161,34 @@ if has_cugraph and has_scipy:
                 "is_directed"
             ]
         )
-        coo_matrix = x.value.tocoo()
-        row_ids = x.node_list[coo_matrix.row]
-        column_ids = x.node_list[coo_matrix.col]
-        if not is_directed:
-            mask = row_ids <= column_ids
-            row_ids = row_ids[mask]
-            column_ids = column_ids[mask]
-        cdf = cudf.DataFrame({"source": row_ids, "target": column_ids})
+        matrix = x.value
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
-        graph.from_cudf_edgelist(
-            cdf, source="source", destination="target",
-        )
+        if isinstance(matrix, ss.csr_matrix):
+            offset_col = cudf.Series(matrix.indptr)
+            index_col = cudf.Series(matrix.indices)
+            value_col = None
+            graph.from_cudf_adjlist(offset_col, index_col, value_col)
+            if x.node_list[0] != 0 or np.any(np.ediff1d(x.node_list) != 1):
+                renumber_df = cudf.DataFrame({"src": x.node_list, "dst": x.node_list})
+                _, renumber_map = NumberMap.renumber(renumber_df, "src", "dst")
+                # assert np.all(renumber_map.implementation.df["0"].value_host == x.node_list)
+                # assert np.all(renumber_map.implementation.df["id"].value_host == np.arange(len(x.node_list)))
+                graph.renumbered = True
+                graph.renumber_map = renumber_map
+        elif isinstance(matrix, ss.coo_matrix):
+            row_ids = x.node_list[matrix.row]
+            column_ids = x.node_list[matrix.col]
+            if not is_directed:
+                mask = row_ids <= column_ids
+                row_ids = row_ids[mask]
+                column_ids = column_ids[mask]
+            cdf = cudf.DataFrame({"source": row_ids, "target": column_ids})
+            graph.from_cudf_edgelist(
+                cdf, source="source", destination="target",
+            )
+            print(f"2 graph.nodes() {repr(graph.nodes())}")
+        else:
+            raise TypeError(f"{matrix} must be a in CSR or COO format.")
         return CuGraphEdgeSet(graph)
 
     @translator
@@ -191,19 +203,37 @@ if has_cugraph and has_scipy:
             ]
         )
 
-        coo_matrix = x.value.tocoo()
-        get_node_from_pos = lambda index: x.node_list[index]
-        row_ids = map(get_node_from_pos, coo_matrix.row)
-        column_ids = map(get_node_from_pos, coo_matrix.col)
-        rcw_triples = zip(row_ids, column_ids, coo_matrix.data)
-        if not is_directed:
-            rcw_triples = filter(lambda triple: triple[0] <= triple[1], rcw_triples)
-        rcw_triples = list(rcw_triples)
-        cdf = cudf.DataFrame(rcw_triples, columns=["source", "target", "weight"])
+        matrix = x.value
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
-        graph.from_cudf_edgelist(
-            cdf, source="source", destination="target", edge_attr="weight",
-        )
+        if isinstance(matrix, ss.csr_matrix):
+            offset_col = cudf.Series(matrix.indptr)
+            index_col = cudf.Series(matrix.indices)
+            value_col = cudf.Series(matrix.data)
+            graph.from_cudf_adjlist(offset_col, index_col, value_col)
+            if x.node_list[0] != 0 or np.any(np.ediff1d(x.node_list) != 1):
+                renumber_df = cudf.DataFrame({"src": x.node_list, "dst": x.node_list})
+                _, renumber_map = NumberMap.renumber(renumber_df, "src", "dst")
+                # assert np.all(renumber_map.implementation.df["0"].value_host == x.node_list)
+                # assert np.all(renumber_map.implementation.df["id"].value_host == np.arange(len(x.node_list)))
+                graph.renumbered = True
+                graph.renumber_map = renumber_map
+        elif isinstance(matrix, ss.coo_matrix):
+            row_ids = x.node_list[matrix.row]
+            column_ids = x.node_list[matrix.col]
+            weights = matrix.data
+            if not is_directed:
+                mask = row_ids <= column_ids
+                row_ids = row_ids[mask]
+                column_ids = column_ids[mask]
+                weights = weights[mask]
+            cdf = cudf.DataFrame(
+                {"source": row_ids, "target": column_ids, "weight": weights}
+            )
+            graph.from_cudf_edgelist(
+                cdf, source="source", destination="target", edge_attr="weight",
+            )
+        else:
+            raise TypeError(f"{matrix} must be a in CSR or COO format.")
         return CuGraphEdgeMap(graph)
 
     @translator
@@ -435,38 +465,64 @@ if has_cugraph and has_scipy:
         has_node_weights = aprops["node_type"] == "map"
         expected_edge_dtype = dtype_casting.get(aprops["edge_dtype"])
 
-        coo_matrix = x.value.tocoo()
-        if (
-            expected_edge_dtype is not None
-            and expected_edge_dtype != dtypes_simplified[coo_matrix.dtype]
-        ):
-            coo_matrix = coo_matrix.astype(expected_edge_dtype)
-        row_ids = x.node_list[coo_matrix.row]
-        column_ids = x.node_list[coo_matrix.col]
-        if is_weighted:
-            weights = coo_matrix.data
-        if not is_directed:
-            mask = row_ids <= column_ids
-            row_ids = row_ids[mask]
-            column_ids = column_ids[mask]
-            if is_weighted:
-                weights = weights[mask]
-        cdf = cudf.DataFrame(
-            {"source": row_ids, "target": column_ids, "weight": weights}
-            if is_weighted
-            else {"source": row_ids, "target": column_ids}
-        )
+        matrix = x.value
         graph = cugraph.DiGraph() if is_directed else cugraph.Graph()
-        graph.from_cudf_edgelist(
-            cdf,
-            source="source",
-            destination="target",
-            edge_attr="weight" if is_weighted else None,
+        edge_dtype_conversion_needed = (
+            expected_edge_dtype is not None
+            and expected_edge_dtype != dtypes_simplified[matrix.dtype]
         )
+
+        if isinstance(matrix, ss.csr_matrix):
+            offset_col = cudf.Series(matrix.indptr)
+            index_col = cudf.Series(matrix.indices)
+            if is_weighted:
+                value_col = cudf.Series(matrix.data)
+                if edge_dtype_conversion_needed:
+                    value_col = value_col.astype(expected_edge_dtype)
+            else:
+                value_col = None
+            graph.from_cudf_adjlist(offset_col, index_col, value_col)
+            if x.node_list[0] != 0 or np.any(np.ediff1d(x.node_list) != 1):
+                renumber_df = cudf.DataFrame({"src": x.node_list, "dst": x.node_list})
+                _, renumber_map = NumberMap.renumber(renumber_df, "src", "dst")
+                # assert np.all(renumber_map.implementation.df["0"].value_host == x.node_list)
+                # assert np.all(renumber_map.implementation.df["id"].value_host == np.arange(len(x.node_list)))
+                graph.renumbered = True
+                graph.renumber_map = renumber_map
+        elif isinstance(matrix, ss.coo_matrix):
+            row_ids = x.node_list[matrix.row]
+            column_ids = x.node_list[matrix.col]
+            if is_weighted:
+                weights = matrix.data
+                if edge_dtype_conversion_needed:
+                    weights = weights.astype(expected_edge_dtype)
+            if not is_directed:
+                # TODO should we move this to the GPU before filtering?
+                # We can do this by generating the cudf.DataFrame first and then filtering
+                mask = row_ids <= column_ids
+                row_ids = row_ids[mask]
+                column_ids = column_ids[mask]
+                if is_weighted:
+                    weights = weights[mask]
+            cdf = cudf.DataFrame(
+                {"source": row_ids, "target": column_ids, "weight": weights}
+                if is_weighted
+                else {"source": row_ids, "target": column_ids}
+            )
+            graph.from_cudf_edgelist(
+                cdf,
+                source="source",
+                destination="target",
+                edge_attr="weight" if is_weighted else None,
+            )
+        else:
+            raise TypeError(f"{matrix} must be a in CSR or COO format.")
+
         if has_node_weights:
             nodes = cudf.Series(x.node_vals, index=x.node_list)
         else:
             nodes = cudf.Series(x.node_list, index=x.node_list)
+
         return CuGraph(graph, nodes, has_node_weights)
 
 
@@ -482,30 +538,35 @@ if has_cugraph and has_networkx:
         aprops.update(
             CuGraph.Type.compute_abstract_properties(
                 x,
-                {"is_directed", "edge_type", "node_type", "node_dtype"} - props.keys(),
+                {"is_directed", "edge_type", "edge_dtype", "node_type", "node_dtype"}
+                - props.keys(),
             )
         )
         is_directed = aprops["is_directed"]
         is_weighted = aprops["edge_type"] == "map"
         has_node_weights = aprops["node_type"] == "map"
+
         out = nx.DiGraph() if is_directed else nx.Graph()
-        column_name_to_edge_list_values = {
-            column_name: series.values_host.tolist()
-            for column_name, series in x.value.view_edge_list().iteritems()
-        }
+        edge_list_df = x.value.view_edge_list()
         node_weight_label = "weight"
         edge_weight_label = "weight"
+
         if is_weighted:
+            weights = edge_list_df["weights"]
+            caster = dtype_casting[aprops["edge_dtype"]]
+            if len(weights) > 0 and type(weights[0]) != caster:
+                weights = weights.astype(caster)
+            weights = weights.values_host.tolist()
             ebunch = zip(
-                column_name_to_edge_list_values["src"],
-                column_name_to_edge_list_values["dst"],
-                column_name_to_edge_list_values["weights"],
+                edge_list_df["src"].values_host.tolist(),
+                edge_list_df["dst"].values_host.tolist(),
+                weights,
             )
             out.add_weighted_edges_from(ebunch)
         else:
             ebunch = zip(
-                column_name_to_edge_list_values["src"],
-                column_name_to_edge_list_values["dst"],
+                edge_list_df["src"].values_host.tolist(),
+                edge_list_df["dst"].values_host.tolist(),
             )
             out.add_edges_from(ebunch)
         nodes = x.nodes.index.values_host

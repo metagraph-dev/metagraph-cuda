@@ -181,16 +181,16 @@ if has_cugraph:
                     ), "g1 and g2 have different nodes"
                     for i, g1_series in enumerate(g1.view_adj_list()):
                         g2_series = g2.view_adj_list()[i]
-                        assert (g1_series == None) == (
-                            g2_series == None
+                        assert (g1_series is None) == (
+                            g2_series is None
                         ), "one of g1 or g2 is weighted while the other is not"
-                        if g1_series != None:
+                        if g1_series is not None:
                             if np.issubdtype(g1_series.dtype.type, np.float):
                                 assert cupy.isclose(g1_series == g2_series)
                             else:
-                                assert all(
+                                assert (
                                     g1_series == g2_series
-                                ), "g1 and g2 have different edges"
+                                ).all(), "g1 and g2 have different edges"
 
     class CuGraph(GraphWrapper, abstract=Graph):
         def __init__(
@@ -330,9 +330,9 @@ if has_cugraph:
                             if np.issubdtype(g1_series.dtype.type, np.float):
                                 assert cupy.isclose(g1_series == g2_series)
                             else:
-                                assert all(
+                                assert (
                                     g1_series == g2_series
-                                ), "g1 and g2 have different edges"
+                                ).all(), "g1 and g2 have different edges"
                 if aprops1["node_type"] == "map":
                     assert obj1.nodes.equal(obj2.nodes)
 

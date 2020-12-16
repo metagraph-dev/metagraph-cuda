@@ -172,6 +172,7 @@ if has_cudf and has_scipy:
         row_ids = x.node_list[coo_matrix.row]
         column_ids = x.node_list[coo_matrix.col]
         if not is_directed:
+            # TODO consider moving this to the GPU before filtering
             mask = row_ids <= column_ids
             row_ids = row_ids[mask]
             column_ids = column_ids[mask]
@@ -190,6 +191,7 @@ if has_cudf and has_scipy:
         column_ids = x.node_list[coo_matrix.col]
         weights = coo_matrix.data
         if not is_directed:
+            # TODO consider moving this to the GPU before filtering
             mask = row_ids <= column_ids
             row_ids = row_ids[mask]
             column_ids = column_ids[mask]
@@ -224,7 +226,7 @@ if has_cudf and has_scipy:
         matrix = ss.coo_matrix(
             (np.ones(len(source_positions)), (source_positions, target_positions)),
             shape=(num_nodes, num_nodes),
-        ).tocsr()
+        )
         return ScipyEdgeSet(matrix, node_list, aprops={"is_directed": is_directed})
 
     @translator
@@ -253,5 +255,5 @@ if has_cudf and has_scipy:
         matrix = ss.coo_matrix(
             (weights, (source_positions, target_positions)),
             shape=(num_nodes, num_nodes),
-        ).tocsr()
+        )
         return ScipyEdgeMap(matrix, node_list, aprops={"is_directed": is_directed})
