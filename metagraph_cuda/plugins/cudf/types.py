@@ -1,12 +1,12 @@
 import numpy as np
-from metagraph.wrappers import (
+from metagraph.plugins.core.wrappers import (
     NodeSetWrapper,
     NodeMapWrapper,
     EdgeSetWrapper,
     EdgeMapWrapper,
 )
 from metagraph import ConcreteType, Wrapper, dtypes
-from metagraph.types import (
+from metagraph.plugins.core.types import (
     DataFrame,
     Vector,
     NodeSet,

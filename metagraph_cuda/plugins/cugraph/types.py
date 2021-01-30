@@ -1,12 +1,12 @@
 import numpy as np
-from metagraph.wrappers import (
+from metagraph.plugins.core.wrappers import (
     EdgeSetWrapper,
     EdgeMapWrapper,
     GraphWrapper,
     BipartiteGraphWrapper,
 )
 from metagraph import dtypes
-from metagraph.types import (
+from metagraph.plugins.core.types import (
     Graph,
     BipartiteGraph,
     EdgeSet,
