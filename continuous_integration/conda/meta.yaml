@@ -21,7 +21,7 @@ requirements:
   run:
     - python
     - setuptools
-    - metagraph
+    - metagraph >=0.2.5
     - cudf >=0.15
     - cupy
     - cugraph >=0.15

@@ -14,27 +14,26 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - name: Setup conda env
-        run: |
-          source "$CONDA/etc/profile.d/conda.sh"
-          conda config --set always_yes yes --set changeps1 no
-          conda update -q conda
-          conda info -a
-          conda create -n mgcuda -c conda-forge python=${{ env.MAIN_PYVER }} 'black>=20.8b1'
-          conda activate mgcuda
+      - name: Create env
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          activate-environment: mg
+          environment-file: continuous_integration/environment.yml
       - name: Lint with Black
         run: |
-          source "$CONDA/etc/profile.d/conda.sh"
-          conda activate mgcuda
+          black --version
           black metagraph_cuda *.py --check --diff
       - name: Conda Build
         run: |
-          source "$CONDA/etc/profile.d/conda.sh"
           conda install -q conda-build
           conda build --no-test -c defaults -c metagraph/label/dev -c rapidsai -c conda-forge --python ${{ env.MAIN_PYVER }} continuous_integration/conda
           # This doesn't rebuild, but simply computes the name of the file that was previously built
