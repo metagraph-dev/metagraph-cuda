@@ -1,10 +1,14 @@
 name: mg
+
+channels:
+- conda-forge
+- metagraph/label/dev
+
 dependencies:
 # dev environment
-  - python=3.7
-  - coverage
-  - pytest
-  - pytest-cov
+  - python=3.8
+  - metagraph-dev
+  - black
 
 # metagraph dependencies (so setup.py develop doesn't pip install them)
   - metagraph::metagraph
